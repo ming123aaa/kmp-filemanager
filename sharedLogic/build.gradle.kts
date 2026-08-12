@@ -60,7 +60,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.ohuang.kmp.filemanager.kmp_filemanager.sharedLogic"
+    namespace = "com.ohuang.kmp.filemanager.sharedLogic"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {

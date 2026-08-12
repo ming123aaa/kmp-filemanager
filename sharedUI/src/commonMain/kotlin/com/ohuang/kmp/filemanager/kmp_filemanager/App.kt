@@ -29,8 +29,9 @@ enum class Screen {
 @Composable
 fun App(settings: Settings) {
     FileManagerTheme {
-        FragmentBox {
-            Surface(modifier = Modifier.fillMaxSize()) {
+
+        Surface(modifier = Modifier.fillMaxSize()) {
+            FragmentBox {
                 var currentScreen by remember { mutableStateOf(Screen.FILE_MANAGER) }
                 var textEditorData by remember { mutableStateOf<TextEditorNavData?>(null) }
                 var uploadPath by remember { mutableStateOf("") }
@@ -105,23 +106,23 @@ fun App(settings: Settings) {
 
                         val navData = textEditorData
                         if (navData != null) {
-                            FragmentBox(modifier = Modifier.fillMaxSize()) {
-                                TextEditorScreen(
-                                    navData = navData,
-                                    isRemote = true,
-                                    onBack = { currentScreen = Screen.FILE_MANAGER },
-                                    onSaved = { content ->
-                                        val r = runCatching {
-                                            ApiService.writeText(navData.filePath, content)
-                                        }
-                                        r.mapCatching {
-                                            if (it.contains("成功")) Unit
-                                            else error(it)
-                                        }
+
+                            TextEditorScreen(
+                                navData = navData,
+                                isRemote = true,
+                                onBack = { currentScreen = Screen.FILE_MANAGER },
+                                onSaved = { content ->
+                                    val r = runCatching {
+                                        ApiService.writeText(navData.filePath, content)
                                     }
-                                )
-                            }
+                                    r.mapCatching {
+                                        if (it.contains("成功")) Unit
+                                        else error(it)
+                                    }
+                                }
+                            )
                         }
+
                     }
 
                     Screen.MEDIA_PREVIEW -> {

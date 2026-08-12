@@ -233,6 +233,8 @@ fun FileManagerScreen(
                                 goMediaPreview(mediaFiles, index)
                             } else if (FileType.getFileType(file.name) == FileType.VIDEO) {
                                 goVideoPlayer(viewModel.getFileUrl(file), file.name)
+                            } else if (FileType.getFileType(file.name) == FileType.HTML || FileType.getFileType(file.name) == FileType.PDF) {
+                                openUri(viewModel.getFileUrl(file))
                             } else {
                                 viewModel.setSelectedFile(file)
                                 val canEdit = FileType.isEditStringType(file.name)
@@ -254,6 +256,8 @@ fun FileManagerScreen(
                                 goMediaPreview(mediaFiles, index)
                             } else if (FileType.getFileType(file.name) == FileType.VIDEO) {
                                 goVideoPlayer(viewModel.getFileUrl(file), file.name)
+                            } else if (FileType.getFileType(file.name) == FileType.HTML || FileType.getFileType(file.name) == FileType.PDF) {
+                                openUri(viewModel.getFileUrl(file))
                             }
                         },
                         onEditString = { file -> viewModel.readFileContent(file, defaultEditMode = true) },

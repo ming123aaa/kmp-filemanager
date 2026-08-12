@@ -51,7 +51,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.ohuang.kmp.filemanager.kmp_filemanager.sharedUI"
+    namespace = "com.ohuang.kmp.filemanager.sharedUI"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {

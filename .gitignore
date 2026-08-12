@@ -22,4 +22,6 @@ node_modules/
 .desktop
 .kotlin
 .run
+kcef-bundle/
+cache/
 

@@ -35,13 +35,13 @@ import kotlin.collections.emptyList
 
 class LocalFileServer(private val config: ServerConfig) {
 
-    private var onThrowable:(Throwable)-> Unit={}
-    private val server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration> by lazy{
+    private var onThrowable: (Throwable) -> Unit = {}
+    private val server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration> by lazy {
         createServer()
     }
     private var coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     fun createServer(): EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration> {
-
+        File(config.rootPath).mkdirs()
         return coroutineScope.embeddedServer(
             factory = CIO,
             port = config.port,
@@ -78,7 +78,7 @@ class LocalFileServer(private val config: ServerConfig) {
                         }
                         val files = dir.listFiles()?.map { file ->
                             FileItem(
-                                name =  file.name ,
+                                name = file.name,
                                 length = if (file.isFile) file.length() else 0L,
                                 isFolder = file.isDirectory,
                                 lastModified = file.lastModified()
@@ -141,6 +141,7 @@ class LocalFileServer(private val config: ServerConfig) {
                             return@post
                         }
                         val parentDir = if (path.isEmpty()) File(config.rootPath) else resolvePath(path)
+                        parentDir.mkdirs()
                         val file = File(parentDir, name)
                         if (file.exists()) {
                             call.respond("已存在")
@@ -308,8 +309,8 @@ class LocalFileServer(private val config: ServerConfig) {
 
     }
 
-     fun start(onThrowable:(Throwable)->Unit) {
-         this.onThrowable=onThrowable
+    fun start(onThrowable: (Throwable) -> Unit) {
+        this.onThrowable = onThrowable
         server.start()
     }
 
