@@ -8,6 +8,7 @@ import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
+import io.ktor.server.request.receiveMultipart
 import io.ktor.server.request.receiveParameters
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondFile
@@ -17,10 +18,12 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.http.content.staticResources
+import io.ktor.http.content.PartData
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.cio.CIOApplicationEngine
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.response.header
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +32,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
 import java.net.URLDecoder
 import java.nio.charset.Charset
 import kotlin.collections.emptyList
@@ -205,7 +209,7 @@ class LocalFileServer(private val config: ServerConfig) {
                         val params = call.receiveParameters()
                         val path = params["path"] ?: ""
                         val targetDir = params["targetDir"] ?: ""
-                        if (path.isEmpty() || targetDir.isEmpty()) {
+                        if (path.isEmpty()) {
                             call.respond("参数不完整")
                             return@post
                         }
@@ -272,6 +276,124 @@ class LocalFileServer(private val config: ServerConfig) {
                             call.respond("保存成功")
                         } catch (e: Exception) {
                             call.respond("保存失败: ${e.message}")
+                        }
+                    }
+
+                    post("/fileUpload") {
+                        if (config.readOnly) {
+                            call.respond("服务器为只读模式")
+                            return@post
+                        }
+                        val multipartData = call.receiveMultipart(formFieldLimit = Long.MAX_VALUE)
+                        val tempDir = File(config.rootPath, ".temp").also { it.mkdirs() }
+                        var path = ""
+                        var tempFile: File? = null
+                        while (true) {
+                            val part = multipartData.readPart() ?: break
+                            when (part) {
+                                is PartData.FormItem -> {
+                                    if (part.name == "path") {
+                                        path = part.value
+                                    }
+                                }
+                                is PartData.FileItem -> {
+                                    if (part.name == "fileName") {
+                                        val safeFileName = File(part.originalFileName ?: "").name
+                                        if (safeFileName.isEmpty()) break
+                                        tempFile = File(tempDir, safeFileName)
+                                        try {
+                                            part.provider().toInputStream().use { input ->
+                                                FileOutputStream(tempFile).use { output ->
+                                                    input.copyTo(output)
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            tempFile.delete()
+                                            call.respond("上传失败: ${e.message}")
+                                            return@post
+                                        }
+                                    }
+                                }
+                                else -> {}
+                            }
+                        }
+                        val src = tempFile
+                        if (src == null || !src.exists()) {
+                            call.respond("文件为空")
+                            return@post
+                        }
+                        if (path.isNotEmpty()) {
+                            val targetDir = resolvePath(path)
+                            targetDir.mkdirs()
+                            val dest = File(targetDir, src.name)
+                            if (dest.exists()) dest.delete()
+                            if (!src.renameTo(dest)) {
+                                src.delete()
+                                call.respond("移动文件失败")
+                                return@post
+                            }
+                        }
+                        call.respond("上传成功")
+
+                        
+                    }
+
+                    post("/multifileUpload") {
+                        if (config.readOnly) {
+                            call.respond("服务器为只读模式")
+                            return@post
+                        }
+                        val multipartData = call.receiveMultipart(formFieldLimit = Long.MAX_VALUE)
+                        val tempDir = File(config.rootPath, ".temp").also { it.mkdirs() }
+                        var path = ""
+                        val tempFiles = mutableListOf<File>()
+                        while (true) {
+                            val part = multipartData.readPart() ?: break
+                            when (part) {
+                                is PartData.FormItem -> {
+                                    if (part.name == "path") {
+                                        path = part.value
+                                    }
+                                }
+                                is PartData.FileItem -> {
+                                    if (part.name == "fileName") {
+                                        val safeName = File(part.originalFileName ?: "").name
+                                        if (safeName.isEmpty()) continue
+                                        val tempFile = File(tempDir, safeName)
+                                        try {
+                                            part.provider().toInputStream().use { input ->
+                                                FileOutputStream(tempFile).use { output ->
+                                                    input.copyTo(output)
+                                                }
+                                            }
+                                            tempFiles.add(tempFile)
+                                        } catch (_: Exception) {
+                                        }
+                                    }
+                                }
+                                else -> {}
+                            }
+                        }
+                        if (tempFiles.isEmpty()) {
+                            call.respond("没有选择文件")
+                            return@post
+                        }
+                        if (path.isNotEmpty()) {
+                            val targetDir = resolvePath(path)
+                            targetDir.mkdirs()
+                            var successCount = 0
+                            for (src in tempFiles) {
+                                val dest = File(targetDir, src.name)
+                                if (dest.exists()) dest.delete()
+                                if (src.renameTo(dest)) {
+                                    successCount++
+                                } else {
+                                    src.delete()
+                                }
+                            }
+                            call.respond("成功上传 $successCount 个文件")
+                        } else {
+                            call.respond("成功上传 ${tempFiles.size} 个文件")
                         }
                     }
 

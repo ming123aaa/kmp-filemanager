@@ -19,9 +19,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ohuang.kmp.filemanager.kmp_filemanager.HttpConfig
+import com.ohuang.kmp.filemanager.kmp_filemanager.PlatformType
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.AppDownloadManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.DownloadTask
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.openLocalFile
+import com.ohuang.kmp.filemanager.kmp_filemanager.getPlatform
 import kotlinx.coroutines.launch
 
 private enum class DownloadFilter(val label: String) {
@@ -168,14 +171,18 @@ fun DownloadScreen(onBack: () -> Unit) {
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.weight(1f).clickable{
+                        if (getPlatform().type== PlatformType.Desktop){
+                            openLocalFile(HttpConfig.getDownloadDir())
+                        }
+                    }) {
                         Text(
                             text = "下载目录",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "当前为应用默认下载目录",
+                            text = HttpConfig.getDownloadDir(),
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                         )
                     }

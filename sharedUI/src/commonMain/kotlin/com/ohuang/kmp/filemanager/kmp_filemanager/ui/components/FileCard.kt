@@ -53,7 +53,7 @@ fun FileCard(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .pointerInput(Unit) {
+                .pointerInput(file) {
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(PointerEventPass.Initial)

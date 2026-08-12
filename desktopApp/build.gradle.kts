@@ -24,7 +24,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "FileManager"
-            packageVersion = "1.0.0"
+            packageVersion = libs.versions.versionName.get()
             vendor="ming"
 
             macOS {
@@ -33,7 +33,7 @@ compose.desktop {
             windows {
                 shortcut = true
                 menu = true
-                perUserInstall = true
+                perUserInstall = false
                 dirChooser = true
                 console = false
                 msiPackageVersion = packageVersion

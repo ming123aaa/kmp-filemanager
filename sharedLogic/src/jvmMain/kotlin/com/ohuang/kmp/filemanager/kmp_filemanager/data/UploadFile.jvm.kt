@@ -36,8 +36,8 @@ actual suspend fun uploadFileImpl(
     return httpClient.stringCall {
         url("${HttpConfig.getBaseUrl()}/main/fileUpload")
         postUploadFile {
-            addFileInputSteam(key = "fileName", file = file.inputStream(), fileName = fileName, callBack = onProgress)
             addFormDataPart("path", path)
+            addFileInputSteam(key = "fileName", file = file.inputStream(), fileName = fileName, callBack = onProgress)
         }
     }.await()
 }

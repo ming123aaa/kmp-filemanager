@@ -52,7 +52,7 @@ fun FileManagerScreen(
         }
     )
     val readOnly by HttpConfig.readOnly.collectAsState()
-    val hasActiveDownloads by AppDownloadManager.hasActiveDownloads.collectAsState()
+    val downloadTasks by AppDownloadManager.tasks.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadSortState()
@@ -138,7 +138,7 @@ fun FileManagerScreen(
                             IconButton(onClick = goDownload) {
                                 Icon(Icons.Default.Download, contentDescription = "Downloads")
                             }
-                            if (hasActiveDownloads) {
+                            if (downloadTasks.isNotEmpty()) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
