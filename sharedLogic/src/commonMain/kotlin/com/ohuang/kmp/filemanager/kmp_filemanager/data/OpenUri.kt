@@ -1,0 +1,3 @@
+package com.ohuang.kmp.filemanager.kmp_filemanager.data
+
+expect fun openUri(uri: String): Boolean
