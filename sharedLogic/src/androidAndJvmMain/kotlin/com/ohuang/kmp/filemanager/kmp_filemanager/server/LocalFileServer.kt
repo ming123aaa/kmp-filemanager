@@ -296,6 +296,7 @@ class LocalFileServer(private val config: ServerConfig) {
                                         path = part.value
                                     }
                                 }
+
                                 is PartData.FileItem -> {
                                     if (part.name == "fileName") {
                                         val safeFileName = File(part.originalFileName ?: "").name
@@ -314,6 +315,7 @@ class LocalFileServer(private val config: ServerConfig) {
                                         }
                                     }
                                 }
+
                                 else -> {}
                             }
                         }
@@ -322,20 +324,20 @@ class LocalFileServer(private val config: ServerConfig) {
                             call.respond("文件为空")
                             return@post
                         }
-                        if (path.isNotEmpty()) {
-                            val targetDir = resolvePath(path)
-                            targetDir.mkdirs()
-                            val dest = File(targetDir, src.name)
-                            if (dest.exists()) dest.delete()
-                            if (!src.renameTo(dest)) {
-                                src.delete()
-                                call.respond("移动文件失败")
-                                return@post
-                            }
+
+                        val targetDir = resolvePath(path)
+                        targetDir.mkdirs()
+                        val dest = File(targetDir, src.name)
+                        if (dest.exists()) dest.delete()
+                        if (!src.renameTo(dest)) {
+                            src.delete()
+                            call.respond("移动文件失败")
+                            return@post
                         }
+
                         call.respond("上传成功")
 
-                        
+
                     }
 
                     post("/multifileUpload") {
@@ -355,6 +357,7 @@ class LocalFileServer(private val config: ServerConfig) {
                                         path = part.value
                                     }
                                 }
+
                                 is PartData.FileItem -> {
                                     if (part.name == "fileName") {
                                         val safeName = File(part.originalFileName ?: "").name
@@ -371,6 +374,7 @@ class LocalFileServer(private val config: ServerConfig) {
                                         }
                                     }
                                 }
+
                                 else -> {}
                             }
                         }
@@ -378,23 +382,21 @@ class LocalFileServer(private val config: ServerConfig) {
                             call.respond("没有选择文件")
                             return@post
                         }
-                        if (path.isNotEmpty()) {
-                            val targetDir = resolvePath(path)
-                            targetDir.mkdirs()
-                            var successCount = 0
-                            for (src in tempFiles) {
-                                val dest = File(targetDir, src.name)
-                                if (dest.exists()) dest.delete()
-                                if (src.renameTo(dest)) {
-                                    successCount++
-                                } else {
-                                    src.delete()
-                                }
+
+                        val targetDir = resolvePath(path)
+                        targetDir.mkdirs()
+                        var successCount = 0
+                        for (src in tempFiles) {
+                            val dest = File(targetDir, src.name)
+                            if (dest.exists()) dest.delete()
+                            if (src.renameTo(dest)) {
+                                successCount++
+                            } else {
+                                src.delete()
                             }
-                            call.respond("成功上传 $successCount 个文件")
-                        } else {
-                            call.respond("成功上传 ${tempFiles.size} 个文件")
                         }
+                        call.respond("成功上传 $successCount 个文件")
+
                     }
 
                     get("/files/{path...}") {
