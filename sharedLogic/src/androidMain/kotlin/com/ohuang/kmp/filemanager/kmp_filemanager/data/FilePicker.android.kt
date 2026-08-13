@@ -81,7 +81,7 @@ fun uriToFilePath(uri: Uri): String? {
         // 复制文件到缓存目录
         val cacheDir = File(ctx.cacheDir, "upload_cache")
         if (!cacheDir.exists()) cacheDir.mkdirs()
-        val file = File(cacheDir, "${System.currentTimeMillis()}_$fileName")
+        val file = File(cacheDir, fileName)
         ctx.contentResolver.openInputStream(uri)?.use { input ->
             file.outputStream().use { output ->
                 input.copyTo(output)
