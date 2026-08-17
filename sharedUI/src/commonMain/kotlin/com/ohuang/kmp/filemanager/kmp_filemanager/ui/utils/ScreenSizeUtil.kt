@@ -2,17 +2,12 @@ package com.ohuang.kmp.filemanager.kmp_filemanager.ui.utils
 
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.UiComposable
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
-import kotlin.compareTo
 
 
 enum class ScreenType {
@@ -22,9 +17,7 @@ enum class ScreenType {
 
 @Composable
 fun rememberScreenType(): ScreenType {
-    val configuration = LocalFragmentBoxSize.current
-    val widthDp = configuration.maxWidth.dp
-
+    val widthDp = LocalWindowInfo.current.containerDpSize.width
     return remember(widthDp) {
         when {
             widthDp >= 1280.dp -> ScreenType.DESKTOP
@@ -107,7 +100,7 @@ fun FragmentBox(
                 }
             )
         ) {
-            this@BoxWithConstraints.content()
+                this@BoxWithConstraints.content()
         }
     }
 }

@@ -47,7 +47,7 @@ fun main() {
             title = "File Manager",
             state = remember { WindowState(width = 1200.dp, height = 800.dp) }
         ) {
-            FragmentBox {
+
                 App(settings)
                 ExitConfirmDialog(
                     show = showExitDialog,
@@ -57,8 +57,6 @@ fun main() {
                         exitApplication()
                     }
                 )
-
-            }
 
         }
     }
