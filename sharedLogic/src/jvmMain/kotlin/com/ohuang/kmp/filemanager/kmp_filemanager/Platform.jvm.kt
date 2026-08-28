@@ -1,6 +1,20 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager
 
+import com.ohuang.kmp.filemanager.kmp_filemanager.server.WebStaticResourcesInfo
+import com.ohuang.kmp.filemanager.kmp_filemanager.server.getLocalIpAddress
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.network.tls.certificates.buildKeyStore
 import java.io.File
+import java.net.InetAddress
+import java.net.NetworkInterface
+import java.security.KeyStore
+import java.security.SecureRandom
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
 
 class JVMPlatform : Platform {
     override val name: String = "Java ${System.getProperty("java.version")}"
@@ -12,6 +26,60 @@ actual fun getPlatform(): Platform = JVMPlatform()
 
 actual fun getDefaultServerRootPath(): String =
     getRealDownloadsDir()
+
+actual fun getHttpsKeystorePath(): String {
+    try {
+        // 优先从 classpath 加载 a123456.p12
+        val resource = object {}.javaClass.classLoader.getResource("a123456.p12")
+        if (resource != null) {
+            return if (resource.protocol == "file") {
+                resource.toURI().path
+            } else {
+                val tempFile = File.createTempFile("keystore_", ".p12")
+                tempFile.deleteOnExit()
+                resource.openStream().use { input ->
+                    java.io.FileOutputStream(tempFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                tempFile.absolutePath
+            }
+        }
+    } catch (_: Exception) {}
+    return  ""
+
+}
+
+
+ actual fun createHttpClient(): HttpClient {
+     // 在创建HttpClient前设置
+     HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
+
+
+     return HttpClient(CIO) {
+
+         engine {
+             https {
+
+
+                 https {
+                     trustManager = object : X509TrustManager {
+                         override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                             // 不校验客户端证书
+
+                         }
+
+                         override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                             // 信任所有服务端证书（跳过校验）
+                         }
+
+                         override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                     }
+                 }
+             }
+         }
+     }
+ }
 
 
  fun isWindows(): Boolean {
@@ -53,4 +121,8 @@ fun getRealDownloadsDir(): String {
     val home = System.getenv("USERPROFILE")
         ?: System.getProperty("user.home")
     return File(home, "Downloads").absolutePath
+}
+
+actual fun getWebStaticResources(): WebStaticResourcesInfo {
+    return WebStaticResourcesInfo(remotePath="/", basePackage = "web")
 }

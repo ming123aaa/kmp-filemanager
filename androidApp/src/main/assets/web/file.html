@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件管理器</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <span class="material-icons" style="font-size:28px;color:var(--primary)">folder_open</span>
+        <span class="header-title">文件管理器</span>
+      </div>
+      <div class="header-right">
+        <div class="search-box">
+          <span class="material-icons">search</span>
+          <input type="text" id="searchInput" placeholder="搜索文件..." onkeyup="filterFiles()">
+        </div>
+        <button class="btn btn-primary action-btn" onclick="showUploadModal()">
+          <span class="material-icons">upload</span>上传
+        </button>
+        <button class="btn btn-outline action-btn" onclick="showMkdirModal()">
+          <span class="material-icons">create_new_folder</span>新建文件夹
+        </button>
+        <button class="btn btn-outline action-btn" onclick="showCreateFileModal()">
+          <span class="material-icons">note_add</span>新建文件
+        </button>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="btn btn-ghost" onclick="goUp()" title="返回上级">
+          <span class="material-icons">arrow_upward</span>
+        </button>
+        <span id="fileCount" class="file-count">加载中...</span>
+      </div>
+      <div class="toolbar-right">
+        <div id="selectionToolbar" class="selection-toolbar" style="display:none">
+          <span id="selectionCount" style="font-size:13px;color:var(--text-secondary);margin-right:8px"></span>
+          <button class="btn btn-sm btn-outline" onclick="selectAll()">全选</button>
+          <button class="btn btn-sm btn-outline" onclick="deselectAll()">取消选择</button>
+          <button class="btn btn-sm btn-danger" onclick="showDeleteSelectedModal()">
+            <span class="material-icons" style="font-size:14px">delete</span>删除
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="showMoveSelectedModal()">
+            <span class="material-icons" style="font-size:14px">drive_file_move</span>移动
+          </button>
+        </div>
+        <div class="filter-group">
+          <button class="filter-btn" data-mode="select" onclick="toggleSelectionMode()" id="selectModeBtn" title="多选模式">
+            <span class="material-icons" style="font-size:18px">checklist</span>
+          </button>
+          <button class="filter-btn active" data-mode="all" onclick="changeFilterMode('all')" title="全部">
+            <span class="material-icons" style="font-size:18px">select_all</span>
+          </button>
+          <button class="filter-btn" data-mode="files" onclick="changeFilterMode('files')" title="仅文件">
+            <span class="material-icons" style="font-size:18px">description</span>
+          </button>
+          <button class="filter-btn" data-mode="folders" onclick="changeFilterMode('folders')" title="仅文件夹">
+            <span class="material-icons" style="font-size:18px">folder</span>
+          </button>
+        </div>
+        <select id="sortSelect" class="sort-select" onchange="sortFiles()">
+          <option value="name-asc">名称 (A-Z)</option>
+          <option value="name-desc">名称 (Z-A)</option>
+          <option value="size-asc">大小 (从小到大)</option>
+          <option value="size-desc">大小 (从大到小)</option>
+          <option value="date-asc">日期 (最早)</option>
+          <option value="date-desc">日期 (最近)</option>
+        </select>
+        <div class="view-toggle">
+          <button id="viewGrid" class="active" onclick="setView('grid')">
+            <span class="material-icons">grid_view</span>
+          </button>
+          <button id="viewPreview" onclick="setView('preview')">
+            <span class="material-icons">auto_awesome</span>
+          </button>
+          <button id="viewList" onclick="setView('list')">
+            <span class="material-icons">list</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="breadcrumb" id="breadcrumb"></div>
+
+    <div class="content" id="content"></div>
+  </div>
+
+  <div class="drop-overlay" id="dropOverlay">
+    <div class="drop-overlay-content">
+      <span class="material-icons">folder_open</span>
+      <p>释放文件以上传</p>
+    </div>
+  </div>
+
+  <div class="context-menu" id="contextMenu"></div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Preview Modal -->
+  <div class="modal-overlay" id="previewModal">
+    <div class="modal preview-modal">
+      <div class="modal-header">
+        <h3 id="previewTitle"></h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div id="previewEncodingWrap" style="display:none;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary)">
+            <span class="material-icons" style="font-size:14px">translate</span>
+            <select id="previewEncoding" class="sort-select" onchange="reloadPreviewText()" style="padding:4px 6px;font-size:11px">
+              <option value="">自动检测</option>
+              <option value="UTF-8">UTF-8</option>
+              <option value="GBK">GBK</option>
+              <option value="GB2312">GB2312</option>
+              <option value="BIG5">BIG5</option>
+              <option value="ISO-8859-1">ISO-8859-1</option>
+              <option value="UTF-16LE">UTF-16 LE</option>
+              <option value="UTF-16BE">UTF-16 BE</option>
+            </select>
+          </div>
+          <button id="editButton" class="btn btn-sm btn-outline" onclick="editFile()" style="display:none">编辑</button>
+          <button class="btn btn-ghost preview-action-btn" onclick="downloadPreviewFile()">
+            <span class="material-icons">download</span>
+          </button>
+          <button class="btn btn-ghost preview-action-btn" onclick="copyLink(document.getElementById('previewTitle').textContent)">
+            <span class="material-icons">link</span>
+          </button>
+          <button class="btn btn-ghost" onclick="closeModal('previewModal')">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body" id="previewBody"></div>
+    </div>
+  </div>
+
+  <!-- Editor Modal -->
+  <div class="modal-overlay" id="editorModal">
+    <div class="modal editor-modal">
+      <div class="modal-header">
+        <h3 id="editorTitle"></h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary)">
+            <span class="material-icons" style="font-size:14px">translate</span>
+            <select id="editorEncoding" class="sort-select" onchange="reloadEditorText()" style="padding:4px 6px;font-size:11px">
+              <option value="">自动</option>
+              <option value="UTF-8">UTF-8</option>
+              <option value="GBK">GBK</option>
+              <option value="GB2312">GB2312</option>
+              <option value="BIG5">BIG5</option>
+              <option value="ISO-8859-1">ISO-8859-1</option>
+            </select>
+          </div>
+          <button class="btn btn-ghost" onclick="closeModal('editorModal')">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <textarea id="editorTextarea" class="editor-textarea"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('editorModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveFile()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="uploadModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>上传文件</h3>
+        <button class="btn btn-ghost" onclick="closeModal('uploadModal')">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="uploadArea" class="upload-area" onclick="document.getElementById('fileInput').click()">
+          <span class="material-icons">cloud_upload</span>
+          <span>点击或拖拽文件到此处上传</span>
+          <input type="file" id="fileInput" multiple style="display:none" onchange="handleFileSelect(event)">
+        </div>
+        <div id="uploadProgress" class="upload-progress" style="margin-top:16px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('uploadModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mkdir Modal -->
+  <div class="modal-overlay" id="mkdirModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>新建文件夹</h3>
+        <button class="btn btn-ghost" onclick="closeModal('mkdirModal')">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="mkdirInput" class="form-control" placeholder="请输入文件夹名称">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('mkdirModal')">取消</button>
+        <button class="btn btn-primary" onclick="createFolder()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create File Modal -->
+  <div class="modal-overlay" id="createFileModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>新建文件</h3>
+        <button class="btn btn-ghost" onclick="closeModal('createFileModal')">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="createFileInput" class="form-control" placeholder="请输入文件名（如 test.txt）">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('createFileModal')">取消</button>
+        <button class="btn btn-primary" onclick="createFile()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Modal -->
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>重命名</h3>
+        <button class="btn btn-ghost" onclick="closeModal('renameModal')">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="renameInput" class="form-control">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('renameModal')">取消</button>
+        <button class="btn btn-primary" onclick="renameItem()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Move Modal -->
+  <div class="modal-overlay" id="moveModal">
+    <div class="modal" style="width:480px">
+      <div class="modal-header">
+        <h3>移动文件</h3>
+        <button class="btn btn-ghost" onclick="closeModal('moveModal')">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px">
+          源文件: <span style="color:var(--text)" id="moveSource"></span>
+        </p>
+        <p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px">选择目标位置:</p>
+        <div id="folderTree" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('moveModal')">取消</button>
+        <button class="btn btn-primary" onclick="handleMove()">移动</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>删除确认</h3>
+        <button class="btn btn-ghost" onclick="closeModal('deleteModal')">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary)">确定要删除 "<span style="color:var(--danger);font-weight:500" id="deleteName"></span>" 吗?</p>
+        <p style="color:var(--text-light);font-size:13px;margin-top:8px">此操作无法撤销</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('deleteModal')">取消</button>
+        <button class="btn btn-danger" onclick="handleDelete()">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

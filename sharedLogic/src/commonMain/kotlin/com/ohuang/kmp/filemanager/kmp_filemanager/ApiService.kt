@@ -29,7 +29,7 @@ object ApiService {
     private const val BASE_PATH = "/main"
     private const val DEFAULT_BUFFER_SIZE = 8192
 
-    private val client = HttpClient()
+    private val client = createHttpClient()
 
     private val json = Json { ignoreUnknownKeys = true }
 

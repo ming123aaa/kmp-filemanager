@@ -20,6 +20,11 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.materialIconsExtended)
     implementation(libs.compose.uiToolingPreview)
+    implementation("com.github.thegrizzlylabs:sardine-android:v0.9")
+    // OkHttp 核心库
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // 官方日志拦截器
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     debugImplementation(libs.compose.uiTooling)
 }
 
@@ -37,6 +42,9 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/INDEX.LIST"
+            excludes += "/META-INF/io.netty.versions.properties"
+            excludes += "/META-INF/DEPENDENCIES"
         }
     }
 
@@ -57,6 +65,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

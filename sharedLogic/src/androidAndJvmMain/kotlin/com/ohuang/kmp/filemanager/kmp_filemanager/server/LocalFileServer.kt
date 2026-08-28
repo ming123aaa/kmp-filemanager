@@ -1,15 +1,29 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.server
 
+import com.ohuang.kmp.filemanager.kmp_filemanager.PlatformType
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FileItem
+import com.ohuang.kmp.filemanager.kmp_filemanager.getPlatform
+import com.ohuang.kmp.filemanager.kmp_filemanager.getWebStaticResources
+import com.ohuang.kmp.filemanager.kmp_filemanager.isTypes
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
+import io.ktor.http.content.PartData
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
-import io.ktor.server.cio.CIO
+import io.ktor.server.netty.Netty
+import io.ktor.server.netty.NettyApplicationEngine
+import io.ktor.server.engine.EmbeddedServer
+import io.ktor.server.engine.EngineConnectorBuilder
+import io.ktor.server.engine.EngineSSLConnectorBuilder
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.http.content.staticFiles
+import io.ktor.server.http.content.staticResources
+import io.ktor.server.http.content.staticZip
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.request.receiveParameters
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondFile
 import io.ktor.server.response.respondText
@@ -17,430 +31,487 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
-import io.ktor.server.http.content.staticResources
-import io.ktor.http.content.PartData
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.cio.CIOApplicationEngine
-import io.ktor.server.engine.EmbeddedServer
-import io.ktor.server.response.header
 import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.Charset
+import java.nio.file.Path
+import java.security.KeyStore
 import kotlin.collections.emptyList
 
 class LocalFileServer(private val config: ServerConfig) {
 
     private var onThrowable: (Throwable) -> Unit = {}
-    private val server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration> by lazy {
+    private val server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> by lazy {
         createServer()
     }
     private var coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    fun createServer(): EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration> {
+
+    fun createServer(): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
         File(config.rootPath).mkdirs()
-        return coroutineScope.embeddedServer(
-            factory = CIO,
-            port = config.port,
-            host = config.bindAddress,
-            parentCoroutineContext = CoroutineExceptionHandler { context, throwable ->
-                onThrowable(throwable)
-            }
-        ) {
-            install(ContentNegotiation) {
-                json(Json {
-                    ignoreUnknownKeys = true
-                    prettyPrint = false
-                })
-            }
-            install(CORS) {
-                anyHost()
-                allowMethod(HttpMethod.Get)
-                allowMethod(HttpMethod.Post)
-                allowHeader("Content-Type")
-            }
-            routing {
-                get("/test/connect") {
-                    val mode = if (config.readOnly) "success (read)" else "success"
-                    call.respondText(mode, ContentType.Text.Plain)
-                }
-
-                route("/main") {
-                    get("/getAllFile") {
-                        val path = call.request.queryParameters["path"] ?: ""
-                        val dir = resolvePath(path)
-                        if (!dir.exists() || !dir.isDirectory) {
-                            call.respond(emptyList<FileItem>())
-                            return@get
-                        }
-                        val files = dir.listFiles()?.map { file ->
-                            FileItem(
-                                name = file.name,
-                                length = if (file.isFile) file.length() else 0L,
-                                isFolder = file.isDirectory,
-                                lastModified = file.lastModified()
-                            )
-                        }?.sortedWith(
-                            compareBy<FileItem> { !it.isFolder }.thenBy { it.name.lowercase() }
-                        ) ?: emptyList()
-                        call.respond(files)
-                    }
-
-                    get("/fileInfo") {
-                        val path = call.request.queryParameters["path"] ?: ""
-                        val file = resolvePath(path)
-                        if (!file.exists()) {
-                            call.respond("文件不存在")
-                            return@get
-                        }
-                        call.respond(
-                            FileItem(
-                                name = file.name,
-                                length = if (file.isFile) file.length() else 0L,
-                                isFolder = file.isDirectory,
-                                lastModified = file.lastModified()
-                            )
-                        )
-                    }
-
-                    post("/mkdir") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val params = call.receiveParameters()
-                        val name = params["name"] ?: ""
-                        val path = params["path"] ?: ""
-                        if (name.isEmpty()) {
-                            call.respond("名称不能为空")
-                            return@post
-                        }
-                        val parentDir = if (path.isEmpty()) File(config.rootPath) else resolvePath(path)
-                        val dir = File(parentDir, name)
-                        if (dir.exists()) {
-                            call.respond("已存在")
-                            return@post
-                        }
-                        val success = dir.mkdirs()
-                        call.respond(if (success) "创建成功" else "创建失败")
-                    }
-
-                    post("/createFile") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val params = call.receiveParameters()
-                        val name = params["name"] ?: ""
-                        val path = params["path"] ?: ""
-                        if (name.isEmpty()) {
-                            call.respond("名称不能为空")
-                            return@post
-                        }
-                        val parentDir = if (path.isEmpty()) File(config.rootPath) else resolvePath(path)
-                        parentDir.mkdirs()
-                        val file = File(parentDir, name)
-                        if (file.exists()) {
-                            call.respond("已存在")
-                            return@post
-                        }
-                        val success = file.createNewFile()
-                        call.respond(if (success) "创建成功" else "创建失败")
-                    }
-
-                    post("/delete") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val params = call.receiveParameters()
-                        val path = params["path"] ?: ""
-                        if (path.isEmpty()) {
-                            call.respond("路径不能为空")
-                            return@post
-                        }
-                        val file = resolvePath(path)
-                        if (!file.exists()) {
-                            call.respond("文件不存在")
-                            return@post
-                        }
-                        val success = file.deleteRecursively()
-                        call.respond(if (success) "删除成功" else "删除失败")
-                    }
-
-                    post("/rename") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val params = call.receiveParameters()
-                        val path = params["path"] ?: ""
-                        val newName = params["newName"] ?: ""
-                        if (path.isEmpty() || newName.isEmpty()) {
-                            call.respond("参数不完整")
-                            return@post
-                        }
-                        val file = resolvePath(path)
-                        if (!file.exists()) {
-                            call.respond("文件不存在")
-                            return@post
-                        }
-                        val newFile = File(file.parentFile, newName)
-                        if (newFile.exists()) {
-                            call.respond("目标名称已存在")
-                            return@post
-                        }
-                        val success = file.renameTo(newFile)
-                        call.respond(if (success) "重命名成功" else "重命名失败")
-                    }
-
-                    post("/move") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val params = call.receiveParameters()
-                        val path = params["path"] ?: ""
-                        val targetDir = params["targetDir"] ?: ""
-                        if (path.isEmpty()) {
-                            call.respond("参数不完整")
-                            return@post
-                        }
-                        val file = resolvePath(path)
-                        if (!file.exists()) {
-                            call.respond("文件不存在")
-                            return@post
-                        }
-                        val targetDirFile = resolvePath(targetDir)
-                        if (!targetDirFile.exists() || !targetDirFile.isDirectory) {
-                            call.respond("目标目录不存在")
-                            return@post
-                        }
-                        val target = File(targetDirFile, file.name)
-                        if (target.exists()) {
-                            call.respond("目标位置已存在同名文件")
-                            return@post
-                        }
-                        val success = file.renameTo(target)
-                        call.respond(if (success) "移动成功" else "移动失败")
-                    }
-
-                    get("/readText") {
-                        val path = call.request.queryParameters["path"] ?: ""
-                        val encoding = call.request.queryParameters["encoding"] ?: "UTF-8"
-                        if (path.isEmpty()) {
-                            call.respond("路径不能为空")
-                            return@get
-                        }
-                        val file = resolvePath(path)
-                        if (!file.exists() || !file.isFile) {
-                            call.respond("文件不存在")
-                            return@get
-                        }
-                        try {
-                            val charset = try {
-                                Charset.forName(encoding)
-                            } catch (_: Exception) {
-                                Charsets.UTF_8
-                            }
-                            val text = file.readText(charset)
-                            call.respondText(text, ContentType.Text.Plain)
-                        } catch (e: Exception) {
-                            call.respond("读取失败: ${e.message}")
-                        }
-                    }
-
-                    post("/writeText") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val params = call.receiveParameters()
-                        val path = params["path"] ?: ""
-                        val txt = params["txt"] ?: ""
-                        if (path.isEmpty()) {
-                            call.respond("路径不能为空")
-                            return@post
-                        }
-                        val file = resolvePath(path)
-                        try {
-                            file.parentFile?.mkdirs()
-                            file.writeText(txt, Charsets.UTF_8)
-                            call.respond("保存成功")
-                        } catch (e: Exception) {
-                            call.respond("保存失败: ${e.message}")
-                        }
-                    }
-
-                    post("/fileUpload") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val multipartData = call.receiveMultipart(formFieldLimit = Long.MAX_VALUE)
-                        val tempDir = File(config.rootPath, ".temp").also { it.mkdirs() }
-                        var path = ""
-                        var tempFile: File? = null
-                        while (true) {
-                            val part = multipartData.readPart() ?: break
-                            when (part) {
-                                is PartData.FormItem -> {
-                                    if (part.name == "path") {
-                                        path = part.value
-                                    }
-                                }
-
-                                is PartData.FileItem -> {
-                                    if (part.name == "fileName") {
-                                        val safeFileName = File(part.originalFileName ?: "").name
-                                        if (safeFileName.isEmpty()) break
-                                        tempFile = File(tempDir, safeFileName)
-                                        try {
-                                            part.provider().toInputStream().use { input ->
-                                                FileOutputStream(tempFile).use { output ->
-                                                    input.copyTo(output)
-                                                }
-                                            }
-                                        } catch (e: Exception) {
-                                            tempFile.delete()
-                                            call.respond("上传失败: ${e.message}")
-                                            return@post
-                                        }
-                                    }
-                                }
-
-                                else -> {}
-                            }
-                        }
-                        val src = tempFile
-                        if (src == null || !src.exists()) {
-                            call.respond("文件为空")
-                            return@post
-                        }
-
-                        val targetDir = resolvePath(path)
-                        targetDir.mkdirs()
-                        val dest = File(targetDir, src.name)
-                        if (dest.exists()) dest.delete()
-                        if (!src.renameTo(dest)) {
-                            src.delete()
-                            call.respond("移动文件失败")
-                            return@post
-                        }
-
-                        call.respond("上传成功")
-
-
-                    }
-
-                    post("/multifileUpload") {
-                        if (config.readOnly) {
-                            call.respond("服务器为只读模式")
-                            return@post
-                        }
-                        val multipartData = call.receiveMultipart(formFieldLimit = Long.MAX_VALUE)
-                        val tempDir = File(config.rootPath, ".temp").also { it.mkdirs() }
-                        var path = ""
-                        val tempFiles = mutableListOf<File>()
-                        while (true) {
-                            val part = multipartData.readPart() ?: break
-                            when (part) {
-                                is PartData.FormItem -> {
-                                    if (part.name == "path") {
-                                        path = part.value
-                                    }
-                                }
-
-                                is PartData.FileItem -> {
-                                    if (part.name == "fileName") {
-                                        val safeName = File(part.originalFileName ?: "").name
-                                        if (safeName.isEmpty()) continue
-                                        val tempFile = File(tempDir, safeName)
-                                        try {
-                                            part.provider().toInputStream().use { input ->
-                                                FileOutputStream(tempFile).use { output ->
-                                                    input.copyTo(output)
-                                                }
-                                            }
-                                            tempFiles.add(tempFile)
-                                        } catch (_: Exception) {
-                                        }
-                                    }
-                                }
-
-                                else -> {}
-                            }
-                        }
-                        if (tempFiles.isEmpty()) {
-                            call.respond("没有选择文件")
-                            return@post
-                        }
-
-                        val targetDir = resolvePath(path)
-                        targetDir.mkdirs()
-                        var successCount = 0
-                        for (src in tempFiles) {
-                            val dest = File(targetDir, src.name)
-                            if (dest.exists()) dest.delete()
-                            if (src.renameTo(dest)) {
-                                successCount++
-                            } else {
-                                src.delete()
-                            }
-                        }
-                        call.respond("成功上传 $successCount 个文件")
-
-                    }
-
-                    get("/files/{path...}") {
-                        val path = call.parameters.getAll("path")?.joinToString("/") ?: ""
-                        if (path.isEmpty()) {
-                            call.respond("路径不能为空")
-                            return@get
-                        }
-                        val decodedPath = URLDecoder.decode(path, "UTF-8")
-                        val file = File(config.rootPath, decodedPath)
-                        if (!file.exists() || !file.isFile) {
-                            call.respond("文件不存在")
-                            return@get
-                        }
-                        if (!file.canonicalPath.startsWith(File(config.rootPath).canonicalPath)) {
-                            call.respond("禁止访问")
-                            return@get
-                        }
-                        val contentType = contentTypeForFile(file.name)
-                        val isInline = isInlineContentType(file.name)
-                        call.response.header("Content-Type", contentType.toString())
-                        call.response.headers.append(
-                            "Content-Disposition",
-                            if (isInline) "inline; filename=\"${file.name}\""
-                            else "attachment; filename=\"${file.name}\""
-                        )
-                        call.respondFile(file)
-                    }
-                }
-
-                staticResources("/", "web")
-            }
+        val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+            onThrowable(throwable)
         }
 
+
+        val connectors = if (config.useHttps) {
+            val keyStoreType = getKeyStoreType(config.keystorePath)
+            val keyStore = KeyStore.getInstance(keyStoreType)
+            FileInputStream(File(config.keystorePath)).use { fis ->
+                keyStore.load(fis, config.keystorePassword.toCharArray())
+            }
+            arrayOf(
+                EngineSSLConnectorBuilder(
+                    keyStore = keyStore,
+                    keyAlias = config.keyAlias,
+                    keyStorePassword = { config.keystorePassword.toCharArray() },
+                    privateKeyPassword = { config.keyPassword.toCharArray() }
+                ).apply {
+                    host = config.bindAddress
+                    port = config.port
+                }
+            )
+        } else {
+            arrayOf(
+                EngineConnectorBuilder().apply {
+                    host = config.bindAddress
+                    port = config.port
+                }
+            )
+        }
+
+        return coroutineScope.embeddedServer(
+            factory = Netty,
+            connectors = connectors,
+            parentCoroutineContext = exceptionHandler,
+            module = {
+                install(ContentNegotiation) {
+                    json(Json {
+                        ignoreUnknownKeys = true
+                        prettyPrint = false
+                    })
+                }
+                install(CORS) {
+                    anyHost()
+                    allowMethod(HttpMethod.Get)
+                    allowMethod(HttpMethod.Post)
+                    allowHeader("Content-Type")
+                }
+                routing {
+                    get("/test/connect") {
+                        val mode = if (config.readOnly) "success (read)" else "success"
+                        call.respondText(mode, ContentType.Text.Plain)
+                    }
+
+                    route("/main") {
+                        get("/getAllFile") {
+                            val path = call.request.queryParameters["path"] ?: ""
+                            val dir = resolvePath(path)
+                            if (!dir.exists() || !dir.isDirectory) {
+                                call.respond(emptyList<FileItem>())
+                                return@get
+                            }
+                            val files = dir.listFiles()?.map { file ->
+                                FileItem(
+                                    name = file.name,
+                                    length = if (file.isFile) file.length() else 0L,
+                                    isFolder = file.isDirectory,
+                                    lastModified = file.lastModified()
+                                )
+                            }?.sortedWith(
+                                compareBy<FileItem> { !it.isFolder }.thenBy { it.name.lowercase() }
+                            ) ?: emptyList()
+                            call.respond(files)
+                        }
+
+                        get("/fileInfo") {
+                            val path = call.request.queryParameters["path"] ?: ""
+                            val file = resolvePath(path)
+                            if (!file.exists()) {
+                                call.respond("文件不存在")
+                                return@get
+                            }
+                            call.respond(
+                                FileItem(
+                                    name = file.name,
+                                    length = if (file.isFile) file.length() else 0L,
+                                    isFolder = file.isDirectory,
+                                    lastModified = file.lastModified()
+                                )
+                            )
+                        }
+
+                        post("/mkdir") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val params = call.receiveParameters()
+                            val name = params["name"] ?: ""
+                            val path = params["path"] ?: ""
+                            if (name.isEmpty()) {
+                                call.respond("名称不能为空")
+                                return@post
+                            }
+                            val parentDir = if (path.isEmpty()) File(config.rootPath) else resolvePath(path)
+                            val dir = File(parentDir, name)
+                            if (dir.exists()) {
+                                call.respond("已存在")
+                                return@post
+                            }
+                            val success = dir.mkdirs()
+                            call.respond(if (success) "创建成功" else "创建失败")
+                        }
+
+                        post("/createFile") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val params = call.receiveParameters()
+                            val name = params["name"] ?: ""
+                            val path = params["path"] ?: ""
+                            if (name.isEmpty()) {
+                                call.respond("名称不能为空")
+                                return@post
+                            }
+                            val parentDir = if (path.isEmpty()) File(config.rootPath) else resolvePath(path)
+                            parentDir.mkdirs()
+                            val file = File(parentDir, name)
+                            if (file.exists()) {
+                                call.respond("已存在")
+                                return@post
+                            }
+                            val success = file.createNewFile()
+                            call.respond(if (success) "创建成功" else "创建失败")
+                        }
+
+                        post("/delete") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val params = call.receiveParameters()
+                            val path = params["path"] ?: ""
+                            if (path.isEmpty()) {
+                                call.respond("路径不能为空")
+                                return@post
+                            }
+                            val file = resolvePath(path)
+                            if (!file.exists()) {
+                                call.respond("文件不存在")
+                                return@post
+                            }
+                            val success = file.deleteRecursively()
+                            call.respond(if (success) "删除成功" else "删除失败")
+                        }
+
+                        post("/rename") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val params = call.receiveParameters()
+                            val path = params["path"] ?: ""
+                            val newName = params["newName"] ?: ""
+                            if (path.isEmpty() || newName.isEmpty()) {
+                                call.respond("参数不完整")
+                                return@post
+                            }
+                            val file = resolvePath(path)
+                            if (!file.exists()) {
+                                call.respond("文件不存在")
+                                return@post
+                            }
+                            val newFile = File(file.parentFile, newName)
+                            if (newFile.exists()) {
+                                call.respond("目标名称已存在")
+                                return@post
+                            }
+                            val success = file.renameTo(newFile)
+                            call.respond(if (success) "重命名成功" else "重命名失败")
+                        }
+
+                        post("/move") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val params = call.receiveParameters()
+                            val path = params["path"] ?: ""
+                            val targetDir = params["targetDir"] ?: ""
+                            if (path.isEmpty()) {
+                                call.respond("参数不完整")
+                                return@post
+                            }
+                            val file = resolvePath(path)
+                            if (!file.exists()) {
+                                call.respond("文件不存在")
+                                return@post
+                            }
+                            val targetDirFile = resolvePath(targetDir)
+                            if (!targetDirFile.exists() || !targetDirFile.isDirectory) {
+                                call.respond("目标目录不存在")
+                                return@post
+                            }
+                            val target = File(targetDirFile, file.name)
+                            if (target.exists()) {
+                                call.respond("目标位置已存在同名文件")
+                                return@post
+                            }
+                            val success = file.renameTo(target)
+                            call.respond(if (success) "移动成功" else "移动失败")
+                        }
+
+                        get("/readText") {
+                            val path = call.request.queryParameters["path"] ?: ""
+                            val encoding = call.request.queryParameters["encoding"] ?: "UTF-8"
+                            if (path.isEmpty()) {
+                                call.respond("路径不能为空")
+                                return@get
+                            }
+                            val file = resolvePath(path)
+                            if (!file.exists() || !file.isFile) {
+                                call.respond("文件不存在")
+                                return@get
+                            }
+                            try {
+                                val charset = try {
+                                    Charset.forName(encoding)
+                                } catch (_: Exception) {
+                                    Charsets.UTF_8
+                                }
+                                val text = file.readText(charset)
+                                call.respondText(text, ContentType.Text.Plain)
+                            } catch (e: Exception) {
+                                call.respond("读取失败: ${e.message}")
+                            }
+                        }
+
+                        post("/writeText") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val params = call.receiveParameters()
+                            val path = params["path"] ?: ""
+                            val txt = params["txt"] ?: ""
+                            if (path.isEmpty()) {
+                                call.respond("路径不能为空")
+                                return@post
+                            }
+                            val file = resolvePath(path)
+                            try {
+                                file.parentFile?.mkdirs()
+                                file.writeText(txt, Charsets.UTF_8)
+                                call.respond("保存成功")
+                            } catch (e: Exception) {
+                                call.respond("保存失败: ${e.message}")
+                            }
+                        }
+
+                        post("/fileUpload") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val multipartData = call.receiveMultipart(formFieldLimit = Long.MAX_VALUE)
+                            val tempDir = File(config.rootPath, ".temp").also { it.mkdirs() }
+                            var path = ""
+                            var tempFile: File? = null
+                            while (true) {
+                                val part = multipartData.readPart() ?: break
+                                when (part) {
+                                    is PartData.FormItem -> {
+                                        if (part.name == "path") {
+                                            path = part.value
+                                        }
+                                    }
+
+                                    is PartData.FileItem -> {
+                                        if (part.name == "fileName") {
+                                            val safeFileName = File(part.originalFileName ?: "").name
+                                            if (safeFileName.isEmpty()) break
+                                            tempFile = File(tempDir, safeFileName)
+                                            try {
+                                                part.provider().toInputStream().use { input ->
+                                                    FileOutputStream(tempFile).use { output ->
+                                                        input.copyTo(output)
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                tempFile.delete()
+                                                call.respond("上传失败: ${e.message}")
+                                                return@post
+                                            }
+                                        }
+                                    }
+
+                                    else -> {}
+                                }
+                            }
+                            val src = tempFile
+                            if (src == null || !src.exists()) {
+                                call.respond("文件为空")
+                                return@post
+                            }
+
+                            val targetDir = resolvePath(path)
+                            targetDir.mkdirs()
+                            val dest = File(targetDir, src.name)
+                            if (dest.exists()) dest.delete()
+                            if (!src.renameTo(dest)) {
+                                src.delete()
+                                call.respond("移动文件失败")
+                                return@post
+                            }
+
+                            call.respond("上传成功")
+
+
+                        }
+
+                        post("/multifileUpload") {
+                            if (config.readOnly) {
+                                call.respond("服务器为只读模式")
+                                return@post
+                            }
+                            val multipartData = call.receiveMultipart(formFieldLimit = Long.MAX_VALUE)
+                            val tempDir = File(config.rootPath, ".temp").also { it.mkdirs() }
+                            var path = ""
+                            val tempFiles = mutableListOf<File>()
+                            while (true) {
+                                val part = multipartData.readPart() ?: break
+                                when (part) {
+                                    is PartData.FormItem -> {
+                                        if (part.name == "path") {
+                                            path = part.value
+                                        }
+                                    }
+
+                                    is PartData.FileItem -> {
+                                        if (part.name == "fileName") {
+                                            val safeName = File(part.originalFileName ?: "").name
+                                            if (safeName.isEmpty()) continue
+                                            val tempFile = File(tempDir, safeName)
+                                            try {
+                                                part.provider().toInputStream().use { input ->
+                                                    FileOutputStream(tempFile).use { output ->
+                                                        input.copyTo(output)
+                                                    }
+                                                }
+                                                tempFiles.add(tempFile)
+                                            } catch (_: Exception) {
+                                            }
+                                        }
+                                    }
+
+                                    else -> {}
+                                }
+                            }
+                            if (tempFiles.isEmpty()) {
+                                call.respond("没有选择文件")
+                                return@post
+                            }
+
+                            val targetDir = resolvePath(path)
+                            targetDir.mkdirs()
+                            var successCount = 0
+                            for (src in tempFiles) {
+                                val dest = File(targetDir, src.name)
+                                if (dest.exists()) dest.delete()
+                                if (src.renameTo(dest)) {
+                                    successCount++
+                                } else {
+                                    src.delete()
+                                }
+                            }
+                            call.respond("成功上传 $successCount 个文件")
+
+                        }
+
+                        get("/files/{path...}") {
+                            val path = call.parameters.getAll("path")?.joinToString("/") ?: ""
+                            if (path.isEmpty()) {
+                                call.respond("路径不能为空")
+                                return@get
+                            }
+                            val decodedPath = URLDecoder.decode(path, "UTF-8")
+                            val file = File(config.rootPath, decodedPath)
+                            if (!file.exists() || !file.isFile) {
+                                call.respond("文件不存在")
+                                return@get
+                            }
+                            if (!file.canonicalPath.startsWith(File(config.rootPath).canonicalPath)) {
+                                call.respond("禁止访问")
+                                return@get
+                            }
+                            val contentType = contentTypeForFile(file.name)
+                            val isInline = isInlineContentType(file.name)
+                            call.response.header("Content-Type", contentType.toString())
+                            call.response.headers.append(
+                                "Content-Disposition",
+                                if (isInline) "inline; filename=\"${file.name}\""
+                                else "attachment; filename=\"${file.name}\""
+                            )
+                            call.respondFile(file)
+                        }
+                    }
+
+
+                    val webStaticResources = getWebStaticResources()
+                    if (getPlatform().type.isTypes(PlatformType.Android)) {
+
+                        staticFiles(
+                            remotePath = webStaticResources.remotePath, dir = File(
+                                webStaticResources.basePackage
+                            ),
+                            index = webStaticResources.index
+                        )
+                    } else {
+                        staticResources(
+                            webStaticResources.remotePath,
+                            webStaticResources.basePackage,
+                            webStaticResources.index
+                        )
+                    }
+                }
+            }
+        )
     }
 
     fun start(onThrowable: (Throwable) -> Unit) {
         this.onThrowable = onThrowable
-        server.start()
+        try {
+            server.start()
+        } catch (e: Throwable) {
+            onThrowable(e)
+        }
+
     }
 
     fun stop() {
-        server.stop(1000, 1000)
-        coroutineScope.cancel()
+        coroutineScope.launch {
+            try {
+                server.stop(1000, 1000)
+            } catch (e: Throwable) {
+
+            }
+
+            coroutineScope.cancel()
+        }
     }
 
     private fun resolvePath(relativePath: String): File {
@@ -455,6 +526,16 @@ class LocalFileServer(private val config: ServerConfig) {
     }
 
     companion object {
+        private fun getKeyStoreType(path: String): String {
+            val ext = path.substringAfterLast('.', "").lowercase()
+            return when (ext) {
+                "p12", "pfx" -> "PKCS12"
+                "bks" -> "BKS"
+                "jks" -> "JKS"
+                else -> "PKCS12"
+            }
+        }
+
         private val MIME_MAP = mapOf(
             // 图片
             "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "png" to "image/png",

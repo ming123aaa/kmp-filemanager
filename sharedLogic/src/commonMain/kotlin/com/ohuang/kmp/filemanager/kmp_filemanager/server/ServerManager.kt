@@ -6,6 +6,9 @@ interface ServerManager {
     val isRunning: StateFlow<Boolean>
     val lastError: StateFlow<String?>
     val accessUrl: StateFlow<String?>
+    val ftpAccessUrl: StateFlow<String?>
+    val webDavAccessUrl: StateFlow<String?>
+    
     val currentConfig: ServerConfig
 
     fun start(config: ServerConfig)

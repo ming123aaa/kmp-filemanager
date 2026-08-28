@@ -15,6 +15,12 @@ object JsServerManager : ServerManager {
     private val _accessUrl = MutableStateFlow<String?>(null)
     override val accessUrl: StateFlow<String?> = _accessUrl
 
+    private val _ftpAccessUrl = MutableStateFlow<String?>(null)
+    override val ftpAccessUrl: StateFlow<String?> = _ftpAccessUrl
+
+    private val _webDavAccessUrl = MutableStateFlow<String?>(null)
+    override val webDavAccessUrl: StateFlow<String?> = _webDavAccessUrl
+
     override val currentConfig: ServerConfig = ServerConfig()
 
     override fun start(config: ServerConfig) {

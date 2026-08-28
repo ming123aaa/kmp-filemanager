@@ -11,3 +11,7 @@ class IOSPlatform : Platform {
 actual fun getPlatform(): Platform = IOSPlatform()
 
 actual fun getDefaultServerRootPath(): String = "."
+
+actual fun getHttpsKeystorePath(): String = ""
+
+actual fun createHttpClient(): io.ktor.client.HttpClient = io.ktor.client.HttpClient()

@@ -112,4 +112,144 @@ object HttpConfig {
         val settings = _settings ?: return 14f
         return settings.getString("text_editor_font_size", "14").toFloatOrNull() ?: 14f
     }
+
+    fun saveFtpPort(port: Int) {
+        val settings = _settings ?: return
+        settings.putString("ftp_port", port.toString())
+    }
+
+    fun loadFtpPort(): Int {
+        val settings = _settings ?: return 2121
+        return settings.getString("ftp_port", "2121").toIntOrNull() ?: 2121
+    }
+
+    fun saveFtpUser(user: String) {
+        val settings = _settings ?: return
+        settings.putString("ftp_user", user)
+    }
+
+    fun loadFtpUser(): String {
+        val settings = _settings ?: return "admin"
+        return settings.getString("ftp_user", "admin")
+    }
+
+    fun saveFtpPassword(password: String) {
+        val settings = _settings ?: return
+        settings.putString("ftp_password", password)
+    }
+
+    fun loadFtpPassword(): String {
+        val settings = _settings ?: return "admin"
+        return settings.getString("ftp_password", "admin")
+    }
+
+    fun saveFtpEnabled(enabled: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("ftp_enabled", enabled)
+    }
+
+    fun loadFtpEnabled(): Boolean {
+        val settings = _settings ?: return true
+        return settings.getBoolean("ftp_enabled", true)
+    }
+
+    fun saveWebDavPort(port: Int) {
+        val settings = _settings ?: return
+        settings.putString("webdav_port", port.toString())
+    }
+
+    fun loadWebDavPort(): Int {
+        val settings = _settings ?: return 8081
+        return settings.getString("webdav_port", "8081").toIntOrNull() ?: 8081
+    }
+
+    fun saveWebDavUser(user: String) {
+        val settings = _settings ?: return
+        settings.putString("webdav_user", user)
+    }
+
+    fun loadWebDavUser(): String {
+        val settings = _settings ?: return "admin"
+        return settings.getString("webdav_user", "admin")
+    }
+
+    fun saveWebDavPassword(password: String) {
+        val settings = _settings ?: return
+        settings.putString("webdav_password", password)
+    }
+
+    fun loadWebDavPassword(): String {
+        val settings = _settings ?: return "admin"
+        return settings.getString("webdav_password", "admin")
+    }
+
+    fun saveWebDavEnabled(enabled: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("webdav_enabled", enabled)
+    }
+
+    fun loadWebDavEnabled(): Boolean {
+        val settings = _settings ?: return true
+        return settings.getBoolean("webdav_enabled", true)
+    }
+
+    fun saveWebDavUseHttps(useHttps: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("webdav_use_https", useHttps)
+    }
+
+    fun loadWebDavUseHttps(): Boolean {
+        val settings = _settings ?: return false
+        return settings.getBoolean("webdav_use_https", false)
+    }
+
+    fun saveServerUseHttps(useHttps: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("server_use_https", useHttps)
+    }
+
+    fun loadServerUseHttps(): Boolean {
+        val settings = _settings ?: return false
+        return settings.getBoolean("server_use_https", false)
+    }
+
+    fun saveKeystorePath(path: String) {
+        val settings = _settings ?: return
+        settings.putString("keystore_path", path)
+    }
+
+    fun loadKeystorePath(): String {
+        val settings = _settings ?: return ""
+        return settings.getString("keystore_path", "")
+    }
+
+    fun saveKeystorePassword(password: String) {
+        val settings = _settings ?: return
+        settings.putString("keystore_password", password)
+    }
+
+    fun loadKeystorePassword(): String {
+        val settings = _settings ?: return ""
+        return settings.getString("keystore_password", "")
+    }
+
+    fun saveKeyAlias(alias: String) {
+        val settings = _settings ?: return
+        settings.putString("key_alias", alias)
+    }
+
+    fun loadKeyAlias(): String {
+        val settings = _settings ?: return ""
+        return settings.getString("key_alias", "")
+    }
+
+    fun saveKeyPassword(password: String) {
+        val settings = _settings ?: return
+        settings.putString("key_password", password)
+    }
+
+    fun loadKeyPassword(): String {
+        val settings = _settings ?: return ""
+        return settings.getString("key_password", "")
+    }
 }
