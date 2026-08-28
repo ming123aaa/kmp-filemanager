@@ -1,17 +1,8 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager
 
 import android.app.Application
-import android.util.Log
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.ServerConfig
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.getServerManager
-import com.thegrizzlylabs.sardineandroid.Sardine
-import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 
 
 class ApplicationImpl : Application() {
@@ -21,25 +12,6 @@ class ApplicationImpl : Application() {
         AppContext.init(this)
         HttpConfig.init(Settings(this))
         startServer()
-
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                delay(5000)
-                val sardine: Sardine = OkHttpSardine(
-                    OkHttpClient.Builder().addInterceptor(HttpLoggingInterceptor().apply {
-                        // 2. 设置日志级别，根据需要选择
-                        setLevel(HttpLoggingInterceptor.Level.BODY)
-                    }).build())
-                sardine.setCredentials("admin", "admin",true)
-                val list = sardine.list("http://192.168.2.103:8083/")
-                list.forEach {
-                    Log.d("webDAV","name=${it.name} ,path=${it.path} ,disName=${it.displayName} ,type=${it.contentType} ,isDirectory=${it.isDirectory}, herf=${it.href}")
-                }
-            }catch (e: Exception){
-               e.printStackTrace()
-            }
-
-        }
 
     }
 

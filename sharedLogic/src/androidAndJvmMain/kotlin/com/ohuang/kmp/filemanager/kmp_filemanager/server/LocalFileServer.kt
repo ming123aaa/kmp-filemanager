@@ -2,6 +2,8 @@ package com.ohuang.kmp.filemanager.kmp_filemanager.server
 
 import com.ohuang.kmp.filemanager.kmp_filemanager.PlatformType
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FileItem
+import com.ohuang.kmp.filemanager.kmp_filemanager.discovery.DeviceInfo
+import com.ohuang.kmp.filemanager.kmp_filemanager.discovery.DeviceResponder
 import com.ohuang.kmp.filemanager.kmp_filemanager.getPlatform
 import com.ohuang.kmp.filemanager.kmp_filemanager.getWebStaticResources
 import com.ohuang.kmp.filemanager.kmp_filemanager.isTypes
@@ -58,6 +60,10 @@ class LocalFileServer(private val config: ServerConfig) {
         createServer()
     }
     private var coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var deviceResponder: DeviceResponder? = null
+
+    /** 设备信息，可由外部设置，用于 /api/info 端点和设备发现 */
+    var deviceInfo: DeviceInfo? = null
 
     fun createServer(): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
         File(config.rootPath).mkdirs()
@@ -113,6 +119,15 @@ class LocalFileServer(private val config: ServerConfig) {
                     get("/test/connect") {
                         val mode = if (config.readOnly) "success (read)" else "success"
                         call.respondText(mode, ContentType.Text.Plain)
+                    }
+
+                    get("/api/info") {
+                        val info = deviceInfo
+                        if (info != null) {
+                            call.respond(info)
+                        } else {
+                            call.respondText("{}", ContentType.Text.Plain)
+                        }
                     }
 
                     route("/main") {
@@ -496,6 +511,7 @@ class LocalFileServer(private val config: ServerConfig) {
         this.onThrowable = onThrowable
         try {
             server.start()
+            startDeviceDiscovery()
         } catch (e: Throwable) {
             onThrowable(e)
         }
@@ -503,6 +519,7 @@ class LocalFileServer(private val config: ServerConfig) {
     }
 
     fun stop() {
+        stopDeviceDiscovery()
         coroutineScope.launch {
             try {
                 server.stop(1000, 1000)
@@ -512,6 +529,19 @@ class LocalFileServer(private val config: ServerConfig) {
 
             coroutineScope.cancel()
         }
+    }
+
+    fun startDeviceDiscovery() {
+        val info = deviceInfo ?: return
+        deviceResponder?.stop()
+        deviceResponder = DeviceResponder(info).also { it.start() }
+    }
+
+    fun stopDeviceDiscovery() {
+        try {
+            deviceResponder?.stop()
+        } catch (_: Exception) {}
+        deviceResponder = null
     }
 
     private fun resolvePath(relativePath: String): File {

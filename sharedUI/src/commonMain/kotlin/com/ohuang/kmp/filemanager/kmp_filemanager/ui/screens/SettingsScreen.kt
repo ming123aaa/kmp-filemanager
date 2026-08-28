@@ -1,10 +1,13 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -16,11 +19,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import com.ohuang.kmp.filemanager.kmp_filemanager.*
+import com.ohuang.kmp.filemanager.kmp_filemanager.ConnectionMode
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FileManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.launchFilePicker
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.launchFolderPicker
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.openUri
+import com.ohuang.kmp.filemanager.kmp_filemanager.discovery.DeviceBindingManager
+import com.ohuang.kmp.filemanager.kmp_filemanager.discovery.DeviceInfo
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.ServerConfig
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.getServerManager
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +41,9 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var downloadDir by remember { mutableStateOf(HttpConfig.getDownloadDir()) }
+    var connectionMode by remember { mutableStateOf(HttpConfig.getConnectionMode()) }
+    var boundDeviceId by remember { mutableStateOf(HttpConfig.getBoundDeviceId()) }
+
     val scope = rememberCoroutineScope()
     val fileManager = remember { FileManager() }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -72,70 +82,106 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                     modifier = Modifier.widthIn(max = 800.dp)
                         .fillMaxWidth()
                 ) {
-                    // 服务器地址
-                    Text(
-                        "服务器地址",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    OutlinedTextField(
-                        value = serverUrl,
-                        onValueChange = { serverUrl = it },
-                        label = { Text("服务器地址") },
-                        placeholder = { Text("http://localhost:8080") },
+                    // 远端服务器
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        trailingIcon = {
-                            if (serverUrl.isNotEmpty()) {
-                                IconButton(onClick = { serverUrl = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "清除")
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "远端服务器",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (connectionMode == ConnectionMode.MANUAL_URL) {
+                        // 手动输入模式
+                        OutlinedTextField(
+                            value = serverUrl,
+                            onValueChange = { serverUrl = it },
+                            label = { Text("远端服务器地址") },
+                            placeholder = { Text("http://localhost:8080") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            trailingIcon = {
+                                if (serverUrl.isNotEmpty()) {
+                                    IconButton(onClick = { serverUrl = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "清除")
+                                    }
                                 }
                             }
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = {
-                                HttpConfig.saveBaseUrl(serverUrl)
-                                testResult = "已保存"
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) { Text("保存") }
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    isTesting = true
-                                    testResult = null
-                                    try {
-                                        val result = ApiService.testConnect(serverUrl)
-                                        testResult =
-                                            if (result.lowercase()
-                                                    .contains("read")
-                                            ) "连接成功 (只读模式)" else "连接成功"
-                                    } catch (e: Exception) {
-                                        testResult = "连接失败: ${e.message}"
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    HttpConfig.saveConnectionMode(ConnectionMode.MANUAL_URL)
+                                    HttpConfig.saveBoundDeviceId("")
+                                    connectionMode = ConnectionMode.MANUAL_URL
+                                    boundDeviceId = ""
+                                    HttpConfig.saveBaseUrl(serverUrl)
+                                    testResult = "已保存"
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("保存") }
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        isTesting = true
+                                        testResult = null
+                                        try {
+                                            val result = ApiService.testConnect(serverUrl)
+                                            testResult =
+                                                if (result.lowercase()
+                                                        .contains("read")
+                                                ) "连接成功 (只读模式)" else "连接成功"
+                                        } catch (e: Exception) {
+                                            testResult = "连接失败: ${e.message}"
+                                        }
+                                        isTesting = false
                                     }
-                                    isTesting = false
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = !isTesting
-                        ) {
-                            if (isTesting) CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = !isTesting
+                            ) {
+                                if (isTesting) CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                else Text("测试连接")
+                            }
+                        }
+                        testResult?.let {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (it.contains("成功")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                             )
-                            else Text("测试连接")
                         }
                     }
-                    testResult?.let {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (it.contains("成功")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+
+                    Column(modifier = Modifier.animateContentSize()) {
+                        // 扫描绑定模式
+                        DeviceScanSection(
+                            currentMode = connectionMode,
+                            currentBoundDeviceId = boundDeviceId,
+                            onSwitchToManual = {
+                                HttpConfig.saveConnectionMode(ConnectionMode.MANUAL_URL)
+                                HttpConfig.saveBoundDeviceId("")
+                                connectionMode = ConnectionMode.MANUAL_URL
+                                boundDeviceId = ""
+                            },
+                            onSwitchToBoundDevice = { deviceId ->
+                                HttpConfig.saveConnectionMode(ConnectionMode.BOUND_DEVICE)
+                                HttpConfig.saveBoundDeviceId(deviceId)
+                                connectionMode = ConnectionMode.BOUND_DEVICE
+                                boundDeviceId = deviceId
+                            }
                         )
+
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -251,6 +297,7 @@ private fun ServerManagementSection(
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
     var serverPort by remember { mutableStateOf(HttpConfig.loadServerPort().toString()) }
+    var serverName by remember { mutableStateOf(HttpConfig.getDeviceName()) }
     var serverRootPath by remember {
         mutableStateOf(
             HttpConfig.loadServerRootPath().ifEmpty { serverManager.currentConfig.rootPath })
@@ -280,6 +327,25 @@ private fun ServerManagementSection(
     )
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // 服务器名称
+            OutlinedTextField(
+                value = serverName,
+                onValueChange = { serverName = it },
+                label = { Text("服务器名称") },
+                placeholder = { Text("用于在其他设备上识别本机") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = !isServerRunning,
+                trailingIcon = {
+                    if (serverName.isNotEmpty() && !isServerRunning) {
+                        IconButton(onClick = { serverName = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "清除")
+                        }
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
             // 启停按钮
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (isServerRunning && accessUrl != null) {
@@ -325,6 +391,7 @@ private fun ServerManagementSection(
                             HttpConfig.saveServerRootPath(serverRootPath)
                             HttpConfig.saveServerReadOnly(serverReadOnly)
                             HttpConfig.saveServerUseHttps(serverUseHttps)
+                            HttpConfig.saveDeviceName(serverName)
                             HttpConfig.saveFtpPort(ftpPortVal)
                             HttpConfig.saveFtpUser(ftpUser)
                             HttpConfig.saveFtpPassword(ftpPassword)
@@ -517,7 +584,6 @@ private fun ServerManagementSection(
             }
 
 
-
             // FTP 访问地址
             ftpAccessUrl?.let { url ->
                 Surface(
@@ -572,20 +638,7 @@ private fun ServerManagementSection(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 端口
-            OutlinedTextField(
-                value = serverPort,
-                onValueChange = { newValue ->
-                    if (newValue.all { it.isDigit() } && newValue.length <= 5) {
-                        serverPort = newValue
-                    }
-                },
-                label = { Text("端口号") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = !isServerRunning
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+
 
             // 根路径
             OutlinedTextField(
@@ -617,50 +670,8 @@ private fun ServerManagementSection(
                     enabled = !isServerRunning
                 ) { Text("恢复默认") }
             }
-            Spacer(modifier = Modifier.height(12.dp))
 
-            // 可读写开关
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("服务器可读写", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        if (serverReadOnly) "只读模式" else "可读写模式",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = !serverReadOnly,
-                    onCheckedChange = { serverReadOnly = !it },
-                    enabled = !isServerRunning
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
 
-            // HTTPS 开关
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("启用 HTTPS", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        if (serverUseHttps) "使用加密连接" else "使用 HTTP 明文连接",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = serverUseHttps,
-                    onCheckedChange = { serverUseHttps = it },
-                    enabled = !isServerRunning
-                )
-            }
             Spacer(modifier = Modifier.height(12.dp))
 
             // 高级设置 展开/收缩
@@ -690,8 +701,199 @@ private fun ServerManagementSection(
                 exit = shrinkVertically()
             ) {
                 Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "本地服务器(http)",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 端口
+                    OutlinedTextField(
+                        value = serverPort,
+                        onValueChange = { newValue ->
+                            if (newValue.all { it.isDigit() } && newValue.length <= 5) {
+                                serverPort = newValue
+                            }
+                        },
+                        label = { Text("端口号") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = !isServerRunning
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // 可读写开关
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("服务器可读写", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                if (serverReadOnly) "只读模式" else "可读写模式",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = !serverReadOnly,
+                            onCheckedChange = { serverReadOnly = !it },
+                            enabled = !isServerRunning
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("启用 HTTPS", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                if (serverUseHttps) "使用加密连接" else "使用 HTTP 明文连接",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = serverUseHttps,
+                            onCheckedChange = { serverUseHttps = it },
+                            enabled = !isServerRunning
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+
+                    // FTP 配置
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "FTP 服务",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Switch(
+                            checked = ftpEnabled,
+                            onCheckedChange = { ftpEnabled = it },
+                            enabled = !isServerRunning
+                        )
+                    }
+                    if (ftpEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = ftpPort,
+                            onValueChange = { newValue ->
+                                if (newValue.all { it.isDigit() } && newValue.length <= 5) {
+                                    ftpPort = newValue
+                                }
+                            },
+                            label = { Text("FTP 端口") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !isServerRunning
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = ftpUser,
+                            onValueChange = { ftpUser = it },
+                            label = { Text("用户名") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !isServerRunning
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = ftpPassword,
+                            onValueChange = { ftpPassword = it },
+                            label = { Text("密码") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !isServerRunning
+                        )
+
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    // WebDAV 配置
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "WebDAV 服务",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Switch(
+                            checked = webDavEnabled,
+                            onCheckedChange = { webDavEnabled = it },
+                            enabled = !isServerRunning
+                        )
+                    }
+                    if (webDavEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = webDavPort,
+                            onValueChange = { newValue ->
+                                if (newValue.all { it.isDigit() } && newValue.length <= 5) {
+                                    webDavPort = newValue
+                                }
+                            },
+                            label = { Text("WebDAV 端口") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !isServerRunning
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("启用 HTTPS", style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    if (webDavUseHttps) "使用加密连接" else "使用 HTTP 明文连接",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = webDavUseHttps,
+                                onCheckedChange = { webDavUseHttps = it },
+                                enabled = !isServerRunning
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = webDavUser,
+                            onValueChange = { webDavUser = it },
+                            label = { Text("用户名") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !isServerRunning
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = webDavPassword,
+                            onValueChange = { webDavPassword = it },
+                            label = { Text("密码") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !isServerRunning
+                        )
+
+                    }
+
                     // HTTPS 证书配置（LocalFileServer 和 WebDAV 共用）
                     if (serverUseHttps || webDavUseHttps) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         Text(
                             "HTTPS 证书配置",
                             style = MaterialTheme.typography.titleSmall
@@ -750,130 +952,9 @@ private fun ServerManagementSection(
                                 enabled = !isServerRunning
                             )
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
 
-                    // FTP 配置
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "FTP 服务",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Switch(
-                            checked = ftpEnabled,
-                            onCheckedChange = { ftpEnabled = it },
-                            enabled = !isServerRunning
-                        )
                     }
-                    if (ftpEnabled) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = ftpPort,
-                            onValueChange = { newValue ->
-                                if (newValue.all { it.isDigit() } && newValue.length <= 5) {
-                                    ftpPort = newValue
-                                }
-                            },
-                            label = { Text("FTP 端口") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = ftpUser,
-                            onValueChange = { ftpUser = it },
-                            label = { Text("用户名") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = ftpPassword,
-                            onValueChange = { ftpPassword = it },
-                            label = { Text("密码") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-
-                    // WebDAV 配置
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "WebDAV 服务",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Switch(
-                            checked = webDavEnabled,
-                            onCheckedChange = { webDavEnabled = it },
-                            enabled = !isServerRunning
-                        )
-                    }
-                    if (webDavEnabled) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = webDavPort,
-                            onValueChange = { newValue ->
-                                if (newValue.all { it.isDigit() } && newValue.length <= 5) {
-                                    webDavPort = newValue
-                                }
-                            },
-                            label = { Text("WebDAV 端口") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("启用 HTTPS", style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    if (webDavUseHttps) "使用加密连接" else "使用 HTTP 明文连接",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = webDavUseHttps,
-                                onCheckedChange = { webDavUseHttps = it },
-                                enabled = !isServerRunning
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = webDavUser,
-                            onValueChange = { webDavUser = it },
-                            label = { Text("用户名") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = webDavPassword,
-                            onValueChange = { webDavPassword = it },
-                            label = { Text("密码") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
         }
@@ -907,6 +988,287 @@ private fun ServerManagementSection(
                         Text("知道了")
                     }
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeviceScanSection(
+    currentMode: ConnectionMode,
+    currentBoundDeviceId: String,
+    onSwitchToManual: () -> Unit,
+    onSwitchToBoundDevice: (deviceId: String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+
+    val boundDevices by DeviceBindingManager.boundDevices.collectAsState()
+    var discoveredDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
+    var isScanning by remember { mutableStateOf(false) }
+    var scanError by remember { mutableStateOf<String?>(null) }
+    var connectMsg by remember { mutableStateOf<String>("") }
+
+
+    // 已绑定设备
+    if (boundDevices.isNotEmpty()) {
+        Text(
+            "已绑定设备",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+
+
+        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)) {
+
+            items(items = boundDevices.sortedBy { device ->
+                val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
+                return@sortedBy !isActive
+            }, key = { it.deviceId }) { device ->
+                val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = if (isActive) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = if (isActive) 2.dp else 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            if (isActive) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Column {
+                                Text(
+                                    device.deviceName,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    device.baseUrl,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isActive) {
+                                FilledTonalButton(
+                                    onClick = onSwitchToManual,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text("断开", style = MaterialTheme.typography.labelMedium)
+                                }
+                            } else {
+                                FilledTonalButton(
+                                    onClick = {
+
+                                        scope.launch {
+
+                                            onSwitchToBoundDevice(device.deviceId)
+                                            connectMsg = "连接中..."
+                                            DeviceBindingManager.scanOrNull()
+                                            connectMsg = HttpConfig.checkConnect()
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text("连接", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    DeviceBindingManager.unbindDevice(device.deviceId)
+                                    if (isActive) onSwitchToManual()
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "解绑",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                }
+                if (isActive && connectMsg.isNotEmpty()) {
+                    Text(
+                        "状态:$connectMsg",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (connectMsg.contains("成功")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+
+    // 扫描按钮
+    Button(
+        onClick = {
+            scope.launch {
+                isScanning = true
+                scanError = null
+                discoveredDevices = emptyList()
+                try {
+                    discoveredDevices = DeviceBindingManager.scan(5000)
+                } catch (e: Exception) {
+                    scanError = "扫描失败: ${e.message}"
+                }
+                isScanning = false
+            }
+        },
+        enabled = !isScanning,
+        modifier = Modifier.fillMaxWidth().height(44.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.tertiary,
+            contentColor = MaterialTheme.colorScheme.onTertiary
+        )
+    ) {
+        if (isScanning) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onTertiary
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("正在扫描局域网设备...")
+        } else {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("扫描局域网设备")
+        }
+    }
+
+    // 扫描结果
+    if (discoveredDevices.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Devices,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                "发现 ${discoveredDevices.size} 台设备",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+
+            items(items = boundDevices.sortedBy { device ->
+                val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
+                return@sortedBy !isActive
+            }, key = { it.deviceId }) { device ->
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Computer,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    device.deviceName,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                            Text(
+                                device.baseUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 22.dp)
+                            )
+                        }
+                        val isBound = boundDevices.any { it.deviceId == device.deviceId }
+                        if (isBound) {
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch {
+                                        connectMsg = "连接中..."
+                                        DeviceBindingManager.updateDevice(device)
+                                        onSwitchToBoundDevice(device.deviceId)
+                                        connectMsg = HttpConfig.checkConnect()
+                                    }
+
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("连接", style = MaterialTheme.typography.labelMedium)
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = {
+                                    DeviceBindingManager.bindDevice(device)
+                                    onSwitchToBoundDevice(device.deviceId)
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("绑定", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 扫描错误
+    scanError?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.errorContainer
+        ) {
+            Text(
+                it,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
             )
         }
     }

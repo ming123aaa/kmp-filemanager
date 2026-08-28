@@ -1,5 +1,7 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.server
 
+import com.ohuang.kmp.filemanager.kmp_filemanager.HttpConfig
+import com.ohuang.kmp.filemanager.kmp_filemanager.discovery.DeviceInfo
 import com.ohuang.kmp.filemanager.kmp_filemanager.getDefaultServerRootPath
 import com.ohuang.kmp.filemanager.kmp_filemanager.getHttpsKeystorePath
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -64,6 +66,16 @@ object AndroidServerManager : ServerManager {
                 _isRunning.value = true
                 host = if (_currentConfig.bindAddress == "0.0.0.0") getLocalIpAddress() else _currentConfig.bindAddress
                 _accessUrl.value = "${if (_currentConfig.useHttps) "https" else "http"}://$host:${_currentConfig.port}/"
+
+                // 设置设备发现信息
+
+                server?.deviceInfo = DeviceInfo(
+                    deviceId = HttpConfig.getDeviceId(),
+                    deviceName = HttpConfig.getDeviceName(),
+                    host = host,
+                    port = _currentConfig.port,
+                    useHttps = _currentConfig.useHttps
+                )
 
                 server?.start({
                     _lastError.value = "服务错误: ${it.message}"
