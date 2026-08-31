@@ -14,6 +14,9 @@ object DeviceBindingManager {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
     private val _boundDevices = MutableStateFlow<List<DeviceInfo>>(emptyList())
     val boundDevices: StateFlow<List<DeviceInfo>> = _boundDevices
+
+    private val _scanDevices = MutableStateFlow<List<DeviceInfo>>(emptyList())
+    val scanDevices: StateFlow<List<DeviceInfo>> = _scanDevices
     val scanner = DeviceScanner()
     private var _settings: Settings? = null
 
@@ -24,13 +27,14 @@ object DeviceBindingManager {
 
     suspend fun scanOrNull():List<DeviceInfo>?{
         try {
-            return scanner.scan()
+            return scan()
         }catch (_: Exception){}
         return null
     }
 
     suspend fun scan(timeOut: Long=3000): List<DeviceInfo>{
         val devices = scanner.scan(timeOut)
+        _scanDevices.value=devices.toMutableList()
         updateBindDevices(devices)
         return devices
     }

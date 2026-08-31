@@ -1,5 +1,6 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.discovery
 
+import com.ohuang.kmp.filemanager.kmp_filemanager.server.getDeviceScannerPort
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -11,7 +12,7 @@ import java.net.SocketTimeoutException
 
 actual class DeviceScanner actual constructor() {
     private val json = Json { ignoreUnknownKeys = true }
-    private val discoveryPort = 19999
+    private val discoveryPort = getDeviceScannerPort()
     private var cancelled = false
 
     actual suspend fun scan(timeoutMs: Long): List<DeviceInfo> = withContext(Dispatchers.IO) {

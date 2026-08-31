@@ -82,6 +82,9 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                     modifier = Modifier.widthIn(max = 800.dp)
                         .fillMaxWidth()
                 ) {
+
+
+
                     // 远端服务器
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -89,103 +92,115 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
                         Text(
-                            "远端服务器",
+                            "服务器绑定",
                             style = MaterialTheme.typography.titleMedium,
                         )
-
                     }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    if (connectionMode == ConnectionMode.MANUAL_URL) {
-                        // 手动输入模式
-                        OutlinedTextField(
-                            value = serverUrl,
-                            onValueChange = { serverUrl = it },
-                            label = { Text("远端服务器地址") },
-                            placeholder = { Text("http://localhost:8080") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            trailingIcon = {
-                                if (serverUrl.isNotEmpty()) {
-                                    IconButton(onClick = { serverUrl = "" }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "清除")
-                                    }
-                                }
-                            }
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = {
+                    Card(modifier = Modifier.animateContentSize()) {
+
+
+                        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+
+
+
+                            // 扫描绑定模式
+                            DeviceScanSection(
+                                currentMode = connectionMode,
+                                currentBoundDeviceId = boundDeviceId,
+                                onSwitchToManual = {
                                     HttpConfig.saveConnectionMode(ConnectionMode.MANUAL_URL)
                                     HttpConfig.saveBoundDeviceId("")
                                     connectionMode = ConnectionMode.MANUAL_URL
                                     boundDeviceId = ""
-                                    HttpConfig.saveBaseUrl(serverUrl)
-                                    testResult = "已保存"
                                 },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("保存") }
-                            OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        isTesting = true
-                                        testResult = null
-                                        try {
-                                            val result = ApiService.testConnect(serverUrl)
-                                            testResult =
-                                                if (result.lowercase()
-                                                        .contains("read")
-                                                ) "连接成功 (只读模式)" else "连接成功"
-                                        } catch (e: Exception) {
-                                            testResult = "连接失败: ${e.message}"
-                                        }
-                                        isTesting = false
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = !isTesting
-                            ) {
-                                if (isTesting) CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                else Text("测试连接")
-                            }
-                        }
-                        testResult?.let {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (it.contains("成功")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                onSwitchToBoundDevice = { deviceId ->
+                                    HttpConfig.saveConnectionMode(ConnectionMode.BOUND_DEVICE)
+                                    HttpConfig.saveBoundDeviceId(deviceId)
+                                    connectionMode = ConnectionMode.BOUND_DEVICE
+                                    boundDeviceId = deviceId
+                                }
                             )
+
+                            if (connectionMode == ConnectionMode.MANUAL_URL) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider()
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "通过地址绑定",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                // 手动输入模式
+                                OutlinedTextField(
+                                    value = serverUrl,
+                                    onValueChange = { serverUrl = it },
+                                    label = { Text("远端服务器地址") },
+                                    placeholder = { Text("http://localhost:8080") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    trailingIcon = {
+                                        if (serverUrl.isNotEmpty()) {
+                                            IconButton(onClick = { serverUrl = "" }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "清除")
+                                            }
+                                        }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            HttpConfig.saveConnectionMode(ConnectionMode.MANUAL_URL)
+                                            HttpConfig.saveBoundDeviceId("")
+                                            connectionMode = ConnectionMode.MANUAL_URL
+                                            boundDeviceId = ""
+                                            HttpConfig.saveBaseUrl(serverUrl)
+                                            testResult = "已保存"
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("保存") }
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                isTesting = true
+                                                testResult = null
+                                                try {
+                                                    val result = ApiService.testConnect(serverUrl)
+                                                    testResult =
+                                                        if (result.lowercase()
+                                                                .contains("read")
+                                                        ) "连接成功 (只读模式)" else "连接成功"
+                                                } catch (e: Exception) {
+                                                    testResult = "连接失败: ${e.message}"
+                                                }
+                                                isTesting = false
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = !isTesting
+                                    ) {
+                                        if (isTesting) CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        else Text("测试连接")
+                                    }
+                                }
+                                testResult?.let {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        it,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (it.contains("成功")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+
                         }
                     }
 
-                    Column(modifier = Modifier.animateContentSize()) {
-                        // 扫描绑定模式
-                        DeviceScanSection(
-                            currentMode = connectionMode,
-                            currentBoundDeviceId = boundDeviceId,
-                            onSwitchToManual = {
-                                HttpConfig.saveConnectionMode(ConnectionMode.MANUAL_URL)
-                                HttpConfig.saveBoundDeviceId("")
-                                connectionMode = ConnectionMode.MANUAL_URL
-                                boundDeviceId = ""
-                            },
-                            onSwitchToBoundDevice = { deviceId ->
-                                HttpConfig.saveConnectionMode(ConnectionMode.BOUND_DEVICE)
-                                HttpConfig.saveBoundDeviceId(deviceId)
-                                connectionMode = ConnectionMode.BOUND_DEVICE
-                                boundDeviceId = deviceId
-                            }
-                        )
-
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider()
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // 服务器管理
@@ -639,7 +654,6 @@ private fun ServerManagementSection(
             }
 
 
-
             // 根路径
             OutlinedTextField(
                 value = serverRootPath,
@@ -1003,11 +1017,10 @@ private fun DeviceScanSection(
     val scope = rememberCoroutineScope()
 
     val boundDevices by DeviceBindingManager.boundDevices.collectAsState()
-    var discoveredDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
+    val discoveredDevices by DeviceBindingManager.scanDevices.collectAsState()
     var isScanning by remember { mutableStateOf(false) }
     var scanError by remember { mutableStateOf<String?>(null) }
     var connectMsg by remember { mutableStateOf<String>("") }
-
 
     // 已绑定设备
     if (boundDevices.isNotEmpty()) {
@@ -1018,120 +1031,114 @@ private fun DeviceScanSection(
         )
 
 
+        boundDevices.sortedBy { device ->
+            val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
+            return@sortedBy !isActive
+        }.forEach { device ->
+            val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
 
-        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)) {
-
-            items(items = boundDevices.sortedBy { device ->
-                val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
-                return@sortedBy !isActive
-            }, key = { it.deviceId }) { device ->
-                val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    color = if (isActive) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = if (isActive) 2.dp else 0.dp
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = if (isActive) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.background,
+                tonalElevation = if (isActive) 2.dp else 0.dp
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            if (isActive) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                        if (isActive) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Column {
+                            Text(
+                                device.deviceName,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                device.baseUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (isActive) {
+                            FilledTonalButton(
+                                onClick = onSwitchToManual,
+                                colors = ButtonDefaults.filledTonalButtonColors().copy(contentColor =
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("断开", style = MaterialTheme.typography.labelMedium)
                             }
-                            Column {
-                                Text(
-                                    device.deviceName,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    device.baseUrl,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                        } else {
+
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch {
+                                        onSwitchToBoundDevice(device.deviceId)
+                                        connectMsg = "连接中..."
+                                        DeviceBindingManager.scanOrNull()
+                                        connectMsg = HttpConfig.checkConnect()
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("连接", style = MaterialTheme.typography.labelMedium)
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (isActive) {
-                                FilledTonalButton(
-                                    onClick = onSwitchToManual,
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(32.dp)
-                                ) {
-                                    Text("断开", style = MaterialTheme.typography.labelMedium)
-                                }
-                            } else {
-                                FilledTonalButton(
-                                    onClick = {
-
-                                        scope.launch {
-
-                                            onSwitchToBoundDevice(device.deviceId)
-                                            connectMsg = "连接中..."
-                                            DeviceBindingManager.scanOrNull()
-                                            connectMsg = HttpConfig.checkConnect()
-                                        }
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(32.dp)
-                                ) {
-                                    Text("连接", style = MaterialTheme.typography.labelMedium)
-                                }
-                            }
-                            IconButton(
-                                onClick = {
-                                    DeviceBindingManager.unbindDevice(device.deviceId)
-                                    if (isActive) onSwitchToManual()
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "解绑",
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                                )
-                            }
+                        IconButton(
+                            onClick = {
+                                DeviceBindingManager.unbindDevice(device.deviceId)
+                                if (isActive) onSwitchToManual()
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "解绑",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
-                if (isActive && connectMsg.isNotEmpty()) {
-                    Text(
-                        "状态:$connectMsg",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (connectMsg.contains("成功")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+            }
+            if (isActive && connectMsg.isNotEmpty()) {
+                Text(
+                    "状态:$connectMsg",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (connectMsg.contains("成功")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(12.dp))
-    }
 
+    }
+    Spacer(modifier = Modifier.height(12.dp))
     // 扫描按钮
     Button(
         onClick = {
             scope.launch {
                 isScanning = true
                 scanError = null
-                discoveredDevices = emptyList()
                 try {
-                    discoveredDevices = DeviceBindingManager.scan(5000)
+                    DeviceBindingManager.scan()
                 } catch (e: Exception) {
                     scanError = "扫描失败: ${e.message}"
                 }
@@ -1167,6 +1174,9 @@ private fun DeviceScanSection(
 
     // 扫描结果
     if (discoveredDevices.isNotEmpty()) {
+
+
+
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Icon(
@@ -1183,44 +1193,55 @@ private fun DeviceScanSection(
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
-        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
 
-            items(items = boundDevices.sortedBy { device ->
-                val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
-                return@sortedBy !isActive
-            }, key = { it.deviceId }) { device ->
-                OutlinedCard(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                    shape = MaterialTheme.shapes.medium
+
+        discoveredDevices.forEach { device ->
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Computer,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    device.deviceName,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Computer,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                device.baseUrl,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 22.dp)
+                                device.deviceName,
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
-                        val isBound = boundDevices.any { it.deviceId == device.deviceId }
-                        if (isBound) {
+                        Text(
+                            device.baseUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 22.dp)
+                        )
+                    }
+                    val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
+                    val isBound = boundDevices.any { it.deviceId == device.deviceId }
+                    if (isBound) {
+                        if (isActive) {
+                            FilledTonalButton(
+                                onClick = onSwitchToManual,
+                                colors = ButtonDefaults.filledTonalButtonColors().copy(contentColor =
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("断开", style = MaterialTheme.typography.labelMedium)
+                            }
+                        } else {
                             FilledTonalButton(
                                 onClick = {
                                     scope.launch {
@@ -1229,31 +1250,31 @@ private fun DeviceScanSection(
                                         onSwitchToBoundDevice(device.deviceId)
                                         connectMsg = HttpConfig.checkConnect()
                                     }
-
                                 },
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                 modifier = Modifier.height(32.dp)
                             ) {
                                 Text("连接", style = MaterialTheme.typography.labelMedium)
                             }
-                        } else {
-                            OutlinedButton(
-                                onClick = {
-                                    DeviceBindingManager.bindDevice(device)
-                                    onSwitchToBoundDevice(device.deviceId)
-                                },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("绑定", style = MaterialTheme.typography.labelMedium)
-                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                DeviceBindingManager.bindDevice(device)
+                                onSwitchToBoundDevice(device.deviceId)
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("绑定", style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
             }
         }
+
     }
 
     // 扫描错误

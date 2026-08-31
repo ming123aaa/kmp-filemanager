@@ -24,6 +24,10 @@ data class ServerConfig(
     val keyPassword: String = ""
 )
 
+fun getDeviceScannerPort(): Int {
+    return 24680
+}
+
 data class WebStaticResourcesInfo(
     val remotePath: String,
     val basePackage: String?,

@@ -28,7 +28,7 @@ kotlin {
             implementation(libs.coil.video)
         }
         jvmMain.dependencies {
-            implementation(libs.cmp.webview)
+
         }
         commonMain.dependencies {
             api(project(":sharedLogic"))

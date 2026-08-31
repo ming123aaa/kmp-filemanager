@@ -1,5 +1,6 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.discovery
 
+import com.ohuang.kmp.filemanager.kmp_filemanager.server.getDeviceScannerPort
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import java.net.DatagramPacket
@@ -12,7 +13,7 @@ import kotlin.concurrent.thread
  */
 class DeviceResponder(
     private val deviceInfo: DeviceInfo,
-    private val port: Int = 19999
+    private val port: Int = getDeviceScannerPort()
 ) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
     private var socket: DatagramSocket? = null
@@ -26,7 +27,7 @@ class DeviceResponder(
             try {
                 socket = DatagramSocket(port)
                 socket?.broadcast = true
-                val buf = ByteArray(1024)
+                val buf = ByteArray(4096)
                 while (running) {
                     try {
                         val requestPacket = DatagramPacket(buf, buf.size)
