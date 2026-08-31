@@ -32,54 +32,55 @@ fun main() {
         return
     }
 
-    application {
-        val settings = Settings()
-        HttpConfig.init(settings)
 
-        val savedPort = HttpConfig.loadServerPort()
-        val savedRootPath = HttpConfig.loadServerRootPath()
-        val savedFtpPort = HttpConfig.loadFtpPort()
-        val savedFtpUser = HttpConfig.loadFtpUser()
-        val savedFtpPassword = HttpConfig.loadFtpPassword()
-        val savedFtpEnabled = HttpConfig.loadFtpEnabled()
-        val savedWebDavPort = HttpConfig.loadWebDavPort()
-        val savedWebDavUser = HttpConfig.loadWebDavUser()
-        val savedWebDavPassword = HttpConfig.loadWebDavPassword()
-        val savedWebDavEnabled = HttpConfig.loadWebDavEnabled()
-        val savedWebDavUseHttps = HttpConfig.loadWebDavUseHttps()
-        val savedServerUseHttps = HttpConfig.loadServerUseHttps()
-        val serverManager = getServerManager()
-        serverManager.start(
-            ServerConfig(
-                port = savedPort,
-                rootPath = savedRootPath.ifEmpty { getDefaultServerRootPath() },
-                useHttps = savedServerUseHttps,
-                ftpPort = savedFtpPort,
-                ftpUser = savedFtpUser,
-                ftpPassword = savedFtpPassword,
-                ftpEnabled = savedFtpEnabled,
-                webDavPort = savedWebDavPort,
-                webDavUser = savedWebDavUser,
-                webDavPassword = savedWebDavPassword,
-                webDavEnabled = savedWebDavEnabled,
-                webDavUseHttps = savedWebDavUseHttps,
-                keystorePath = HttpConfig.loadKeystorePath(),
-                keystorePassword = HttpConfig.loadKeystorePassword(),
-                keyAlias = HttpConfig.loadKeyAlias(),
-                keyPassword = HttpConfig.loadKeyPassword()
+        application {
+            val settings = Settings()
+            HttpConfig.init(settings)
+
+            val savedPort = HttpConfig.loadServerPort()
+            val savedRootPath = HttpConfig.loadServerRootPath()
+            val savedFtpPort = HttpConfig.loadFtpPort()
+            val savedFtpUser = HttpConfig.loadFtpUser()
+            val savedFtpPassword = HttpConfig.loadFtpPassword()
+            val savedFtpEnabled = HttpConfig.loadFtpEnabled()
+            val savedWebDavPort = HttpConfig.loadWebDavPort()
+            val savedWebDavUser = HttpConfig.loadWebDavUser()
+            val savedWebDavPassword = HttpConfig.loadWebDavPassword()
+            val savedWebDavEnabled = HttpConfig.loadWebDavEnabled()
+            val savedWebDavUseHttps = HttpConfig.loadWebDavUseHttps()
+            val savedServerUseHttps = HttpConfig.loadServerUseHttps()
+            val serverManager = getServerManager()
+            serverManager.start(
+                ServerConfig(
+                    port = savedPort,
+                    rootPath = savedRootPath.ifEmpty { getDefaultServerRootPath() },
+                    useHttps = savedServerUseHttps,
+                    ftpPort = savedFtpPort,
+                    ftpUser = savedFtpUser,
+                    ftpPassword = savedFtpPassword,
+                    ftpEnabled = savedFtpEnabled,
+                    webDavPort = savedWebDavPort,
+                    webDavUser = savedWebDavUser,
+                    webDavPassword = savedWebDavPassword,
+                    webDavEnabled = savedWebDavEnabled,
+                    webDavUseHttps = savedWebDavUseHttps,
+                    keystorePath = HttpConfig.loadKeystorePath(),
+                    keystorePassword = HttpConfig.loadKeystorePassword(),
+                    keyAlias = HttpConfig.loadKeyAlias(),
+                    keyPassword = HttpConfig.loadKeyPassword()
+                )
             )
-        )
 
-        var showExitDialog by mutableStateOf(false)
+            var showExitDialog by mutableStateOf(false)
 
-        Window(
-            onCloseRequest = { showExitDialog = true },
-            title = "File Manager",
-            state = remember { WindowState(width = 1200.dp, height = 800.dp) }
-        ) {
+            Window(
+                onCloseRequest = { showExitDialog = true },
+                title = "File Manager",
+                state = remember { WindowState(width = 1200.dp, height = 800.dp) }
+            ) {
 
-            val rememberCoroutineScope = rememberCoroutineScope()
-            App(settings)
+                val rememberCoroutineScope = rememberCoroutineScope()
+                App(settings)
                 ExitConfirmDialog(
                     show = showExitDialog,
                     onDismiss = { showExitDialog = false },
@@ -91,6 +92,9 @@ fun main() {
                     }
                 )
 
+            }
         }
-    }
+
+
+
 }

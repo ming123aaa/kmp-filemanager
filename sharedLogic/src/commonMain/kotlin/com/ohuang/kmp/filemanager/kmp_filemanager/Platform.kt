@@ -8,17 +8,29 @@ interface Platform {
     val type: PlatformType
 }
 
-enum class PlatformType{
-    Desktop,IOS,Android,Web
+enum class PlatformType {
+    Desktop, IOS, Android, Web
 }
 
-fun PlatformType.isTypes(vararg types: PlatformType): Boolean{
-    return  types.any { this == it }
+inline fun tryCatch(onError: (Throwable) -> Unit = {}, onFinally: () -> Unit = {}, block: () -> Unit) {
+    try {
+        block()
+    } catch (e: Exception) {
+        onError(e)
+    } finally {
+        onFinally()
+    }
+}
+
+fun PlatformType.isTypes(vararg types: PlatformType): Boolean {
+    return types.any { this == it }
 }
 
 expect fun getPlatform(): Platform
 
 expect fun getDefaultServerRootPath(): String
+
+expect fun getDefaultDeviceName(): String
 
 expect fun getHttpsKeystorePath(): String
 

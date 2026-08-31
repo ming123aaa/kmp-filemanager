@@ -1,18 +1,18 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
+import com.ohuang.kmp.filemanager.kmp_filemanager.ui.components.PlatformVideoPlayer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -32,7 +32,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextOverflow
-import com.ohuang.kmp.filemanager.kmp_filemanager.ui.components.VideoPlayer
 import com.ohuang.kmp.filemanager.kmp_filemanager.util.openUrlInBrowser
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,36 +41,12 @@ fun VideoPlayerScreen(
     fileName: String,
     onClose: () -> Unit
 ) {
-    var uiVisible by remember { mutableStateOf(true) }
-    val focusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
-        delay(100)
-        focusRequester.requestFocus()
-    }
 
-    Column(
+    Scaffold(
         modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { keyEvent ->
-                if (keyEvent.type == KeyEventType.KeyDown &&
-                    keyEvent.key == androidx.compose.ui.input.key.Key.Escape
-                ) {
-                    onClose()
-                    true
-                } else {
-                    false
-                }
-            }
-    ) {
-        // 顶部工具栏
-        AnimatedVisibility(
-            visible = uiVisible,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
+            .fillMaxSize(),
+        containerColor = Color.Black, topBar = {
             TopAppBar(
                 title = {
                     Text(
@@ -103,11 +78,19 @@ fun VideoPlayerScreen(
                     }
                 }
             )
+        }) {
+
+        Column(modifier = Modifier.fillMaxSize().padding(it)) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                PlatformVideoPlayer(
+                    url = url,
+                    modifier = Modifier.fillMaxSize(),
+                    showControls = true,
+                    autoPlay = true
+                )
+            }
         }
 
-        VideoPlayer(
-            url = url,
-            modifier = Modifier.fillMaxWidth().weight(1f)
-        )
     }
+
 }

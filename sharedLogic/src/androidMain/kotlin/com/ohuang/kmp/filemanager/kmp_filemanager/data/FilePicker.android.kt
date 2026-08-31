@@ -4,11 +4,12 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import com.ohuang.kmp.filemanager.kmp_filemanager.ActivityContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 
-private var appContext: Context? = null
+
 
 data class FilePickerRequest(
     val allowMultiple: Boolean,
@@ -19,9 +20,6 @@ data class FilePickerRequest(
 private val _pendingFilePick = MutableStateFlow<FilePickerRequest?>(null)
 val pendingFilePick: StateFlow<FilePickerRequest?> = _pendingFilePick
 
-fun initFilePicker(context: Context) {
-    appContext = context.applicationContext
-}
 
 fun onFilePickerResult(uris: List<Uri>, request: FilePickerRequest) {
     val paths = uris.mapNotNull { uriToFilePath(it) }
@@ -54,7 +52,7 @@ private fun resolveFolderPath(uri: Uri?): String? {
 
 fun uriToFilePath(uri: Uri): String? {
     return try {
-        val ctx = appContext ?: return null
+        val ctx = ActivityContext.get() ?: return null
 
         // 尝试从 ContentResolver 获取文件名
         var fileName: String? = null

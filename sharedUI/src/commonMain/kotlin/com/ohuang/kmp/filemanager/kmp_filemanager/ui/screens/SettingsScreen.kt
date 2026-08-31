@@ -346,8 +346,8 @@ private fun ServerManagementSection(
             OutlinedTextField(
                 value = serverName,
                 onValueChange = { serverName = it },
-                label = { Text("服务器名称") },
-                placeholder = { Text("用于在其他设备上识别本机") },
+                label = {  Text("服务器名称") },
+                placeholder = { Text(getDefaultDeviceName()) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 enabled = !isServerRunning,
@@ -407,6 +407,7 @@ private fun ServerManagementSection(
                             HttpConfig.saveServerReadOnly(serverReadOnly)
                             HttpConfig.saveServerUseHttps(serverUseHttps)
                             HttpConfig.saveDeviceName(serverName)
+                            serverName= HttpConfig.getDeviceName()
                             HttpConfig.saveFtpPort(ftpPortVal)
                             HttpConfig.saveFtpUser(ftpUser)
                             HttpConfig.saveFtpPassword(ftpPassword)
@@ -1091,7 +1092,7 @@ private fun DeviceScanSection(
                                 onClick = {
                                     scope.launch {
                                         onSwitchToBoundDevice(device.deviceId)
-                                        connectMsg = "连接中..."
+                                        connectMsg = ""
                                         DeviceBindingManager.scanOrNull()
                                         connectMsg = HttpConfig.checkConnect()
                                     }
@@ -1245,9 +1246,10 @@ private fun DeviceScanSection(
                             FilledTonalButton(
                                 onClick = {
                                     scope.launch {
-                                        connectMsg = "连接中..."
+
                                         DeviceBindingManager.updateDevice(device)
                                         onSwitchToBoundDevice(device.deviceId)
+                                        connectMsg = ""
                                         connectMsg = HttpConfig.checkConnect()
                                     }
                                 },
@@ -1260,8 +1262,13 @@ private fun DeviceScanSection(
                     } else {
                         OutlinedButton(
                             onClick = {
-                                DeviceBindingManager.bindDevice(device)
-                                onSwitchToBoundDevice(device.deviceId)
+                                scope.launch {
+                                    DeviceBindingManager.bindDevice(device)
+                                    onSwitchToBoundDevice(device.deviceId)
+                                    connectMsg = ""
+                                    connectMsg = HttpConfig.checkConnect()
+                                }
+
                             },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                             modifier = Modifier.height(32.dp)

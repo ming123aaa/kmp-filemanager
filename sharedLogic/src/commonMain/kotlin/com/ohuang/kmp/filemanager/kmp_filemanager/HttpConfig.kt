@@ -336,13 +336,17 @@ object HttpConfig {
     }
 
     fun getDeviceName(): String {
-        val settings = _settings ?: return "FileManager"
-        return settings.getString("device_name", "FileManager").ifEmpty { "FileManager" }
+        val settings = _settings ?: return getDefaultDeviceName()
+        return settings.getString("device_name", getDefaultDeviceName()).ifEmpty { getDefaultDeviceName() }
     }
 
     fun saveDeviceName(name: String) {
         val settings = _settings ?: return
-        settings.putString("device_name", name)
+        if (name.isEmpty()) {
+            settings.putString("device_name", getDefaultDeviceName())
+        }else {
+            settings.putString("device_name", name)
+        }
     }
 
     private fun generateDeviceId(): String {

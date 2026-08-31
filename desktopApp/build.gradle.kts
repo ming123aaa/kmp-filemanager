@@ -33,7 +33,7 @@ compose.desktop {
             windows {
                 shortcut = true
                 menu = true
-                perUserInstall = false
+                perUserInstall = true
                 dirChooser = true
                 console = false
                 msiPackageVersion = packageVersion

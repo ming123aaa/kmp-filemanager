@@ -4,6 +4,7 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.HttpConfig
 import com.ohuang.kmp.filemanager.kmp_filemanager.discovery.DeviceInfo
 import com.ohuang.kmp.filemanager.kmp_filemanager.getDefaultServerRootPath
 import com.ohuang.kmp.filemanager.kmp_filemanager.getHttpsKeystorePath
+import com.ohuang.kmp.filemanager.kmp_filemanager.tryCatch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -57,9 +58,7 @@ object JvmServerManager : ServerManager {
                 config
             }
 
-            if (_currentConfig.useHttps || _currentConfig.webDavUseHttps) {
-                openFirewallPorts(_currentConfig)
-            }
+            openFirewallPorts(_currentConfig)
             var host = "127.0.0.1"
             try {
                 server = LocalFileServer(_currentConfig)
@@ -185,14 +184,33 @@ private fun openFirewallPorts(config: ServerConfig) {
         val ports = mutableSetOf<Int>()
         if (config.useHttps) ports.add(config.port)
         if (config.webDavUseHttps) ports.add(config.webDavPort)
+
+        // 设备发现端口同时支持 UDP 和 TCP
+        ports.add(getDeviceScannerPort())
+
+        // 添加防火墙端口规则
         for (port in ports) {
-            Runtime.getRuntime().exec(
-                arrayOf("netsh", "advfirewall", "firewall", "add", "rule",
-                    "name=FileManager-Port-$port",
-                    "dir=in", "action=allow", "protocol=TCP",
-                    "localport=$port")
-            )
+            // TCP 规则
+            tryCatch {
+                Runtime.getRuntime().exec(
+                    arrayOf("netsh", "advfirewall", "firewall", "add", "rule",
+                        "name=FileManager-TCP-$port",
+                        "dir=in", "action=allow", "protocol=TCP",
+                        "localport=$port")
+                )
+            }
+            // UDP 规则
+            tryCatch {
+                Runtime.getRuntime().exec(
+                    arrayOf("netsh", "advfirewall", "firewall", "add", "rule",
+                        "name=FileManager-UDP-$port",
+                        "dir=in", "action=allow", "protocol=UDP",
+                        "localport=$port")
+                )
+            }
         }
+
+
     } catch (_: Exception) {}
 }
 

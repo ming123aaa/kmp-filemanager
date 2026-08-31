@@ -20,10 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FilePickerRequest
-import com.ohuang.kmp.filemanager.kmp_filemanager.data.initFilePicker
-import com.ohuang.kmp.filemanager.kmp_filemanager.data.initOpenUri
-import com.ohuang.kmp.filemanager.kmp_filemanager.data.initClipboard
-import com.ohuang.kmp.filemanager.kmp_filemanager.data.initOpenLocalFile
+
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.onFilePickerResult
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.onFolderPickerResult
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.pendingFilePick
@@ -68,11 +65,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        initOpenUri(this)
-        initClipboard(this)
-        initOpenLocalFile(this)
-        initFilePicker(this)
+        ActivityContext.init(this)
 
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -127,13 +120,13 @@ class MainActivity : ComponentActivity() {
                 filePickerLauncher.launch(intent)
             }
 
-            
             App(Settings(this))
         }
     }
 
     override fun onDestroy() {
         stopServer()
+        ActivityContext.destroy()
         super.onDestroy()
     }
 

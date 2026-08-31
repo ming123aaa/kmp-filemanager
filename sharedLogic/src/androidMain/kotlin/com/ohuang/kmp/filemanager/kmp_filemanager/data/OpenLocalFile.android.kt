@@ -7,16 +7,13 @@ import android.os.Build
 import android.provider.Settings
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
+import com.ohuang.kmp.filemanager.kmp_filemanager.ActivityContext
 import java.io.File
 
-private var appContext: Context? = null
 
-fun initOpenLocalFile(context: Context) {
-    appContext = context.applicationContext
-}
 
 actual fun openLocalFile(path: String): Boolean {
-    val ctx = appContext ?: return false
+    val ctx = ActivityContext.get() ?: return false
     return try {
         val file = File(path)
         if (!file.exists()) return false

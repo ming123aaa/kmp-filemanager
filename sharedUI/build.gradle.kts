@@ -23,12 +23,14 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
-            implementation(libs.media3.exoplayer)
-            implementation(libs.media3.ui)
+            implementation(libs.mediaplayer.kmp)
             implementation(libs.coil.video)
         }
+        iosMain.dependencies {
+            implementation(libs.mediaplayer.kmp)
+        }
         jvmMain.dependencies {
-
+            implementation(libs.cmp.webview)
         }
         commonMain.dependencies {
             api(project(":sharedLogic"))

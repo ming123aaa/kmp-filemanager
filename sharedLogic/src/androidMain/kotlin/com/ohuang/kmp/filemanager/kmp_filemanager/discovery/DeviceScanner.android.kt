@@ -8,12 +8,28 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.SocketTimeoutException
 
 actual class DeviceScanner actual constructor() {
     private val json = Json { ignoreUnknownKeys = true }
     private val discoveryPort = getDeviceScannerPort()
     private var cancelled = false
+
+    fun getBroadcastAddresses(): List<InetAddress> {
+        val addresses = mutableListOf<InetAddress>()
+        NetworkInterface.getNetworkInterfaces().toList().forEach { ni ->
+            if (ni.isUp && !ni.isLoopback) {
+                ni.interfaceAddresses.forEach { ia ->
+                    ia.broadcast?.let { addresses.add(it) }
+                }
+            }
+        }
+        if (addresses.isEmpty()) {
+            addresses.add(InetAddress.getByName("255.255.255.255"))
+        }
+        return addresses
+    }
 
     actual suspend fun scan(timeoutMs: Long): List<DeviceInfo> = withContext(Dispatchers.IO) {
         cancelled = false
@@ -26,11 +42,13 @@ actual class DeviceScanner actual constructor() {
 
             val request = """{"type":"discover","version":"1.0"}"""
             val requestBytes = request.toByteArray(Charsets.UTF_8)
-            val broadcastAddr = InetAddress.getByName("255.255.255.255")
-            val requestPacket = DatagramPacket(requestBytes, requestBytes.size, broadcastAddr, discoveryPort)
-            socket.send(requestPacket)
+            getBroadcastAddresses().forEach {broadcastAddr->
+                val requestPacket = DatagramPacket(requestBytes, requestBytes.size, broadcastAddr, discoveryPort)
+                socket.send(requestPacket)
+            }
 
-            val buf = ByteArray(2048)
+
+            val buf = ByteArray(4096)
             while (!cancelled) {
                 try {
                     val responsePacket = DatagramPacket(buf, buf.size)

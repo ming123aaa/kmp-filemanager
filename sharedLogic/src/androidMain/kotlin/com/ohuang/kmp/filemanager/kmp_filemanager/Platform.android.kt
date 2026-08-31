@@ -69,3 +69,8 @@ fun getDefaultServiceFilePath(context: Context = AppContext.instance): String {
 actual fun getWebStaticResources(): WebStaticResourcesInfo {
     return AppContext.getWebStaticResources()
 }
+
+actual fun getDefaultDeviceName(): String{
+    return AppContext.getDeviceName()
+}
+

@@ -1,20 +1,16 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager
 
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.WebStaticResourcesInfo
-import com.ohuang.kmp.filemanager.kmp_filemanager.server.getLocalIpAddress
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.network.tls.certificates.buildKeyStore
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import java.io.BufferedReader
 import java.io.File
-import java.net.InetAddress
-import java.net.NetworkInterface
-import java.security.KeyStore
-import java.security.SecureRandom
-import javax.net.ssl.X509TrustManager
+import java.io.InputStreamReader
 import java.security.cert.X509Certificate
+import java.util.*
 import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+
 
 class JVMPlatform : Platform {
     override val name: String = "Java ${System.getProperty("java.version")}"
@@ -125,4 +121,33 @@ fun getRealDownloadsDir(): String {
 
 actual fun getWebStaticResources(): WebStaticResourcesInfo {
     return WebStaticResourcesInfo(remotePath="/", basePackage = "web")
+}
+
+fun getHostname(): String? {
+    val os = System.getProperty("os.name").lowercase(Locale.getDefault())
+    var command: String? = null
+
+    if (os.contains("win")) {
+        command = "cmd.exe /c hostname" // Windows命令
+    } else { // Linux, macOS, Unix等
+        command = "hostname"
+    }
+
+    try {
+        val process = Runtime.getRuntime().exec(command)
+        val reader = BufferedReader(
+            InputStreamReader(process.getInputStream())
+        )
+        val hostname = reader.readLine()
+        process.destroy()
+        return hostname // 例如：my-server-01
+    } catch (e: java.lang.Exception) {
+        e.printStackTrace()
+        return null
+    }
+}
+
+
+actual fun getDefaultDeviceName(): String{
+    return getHostname()?:"FileManager"
 }

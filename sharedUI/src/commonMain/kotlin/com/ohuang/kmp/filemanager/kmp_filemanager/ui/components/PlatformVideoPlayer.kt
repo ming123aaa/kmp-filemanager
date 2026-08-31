@@ -4,7 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 @Composable
-expect fun VideoPlayer(
+expect fun PlatformVideoPlayer(
     url: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showControls: Boolean = true,
+    autoPlay: Boolean = false
 )
