@@ -1139,7 +1139,7 @@ private fun DeviceScanSection(
                 isScanning = true
                 scanError = null
                 try {
-                    DeviceBindingManager.scan()
+                    DeviceBindingManager.scanning()
                 } catch (e: Exception) {
                     scanError = "扫描失败: ${e.message}"
                 }

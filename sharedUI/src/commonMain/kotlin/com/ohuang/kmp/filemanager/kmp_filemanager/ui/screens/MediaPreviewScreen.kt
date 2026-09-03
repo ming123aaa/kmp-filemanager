@@ -61,9 +61,11 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
@@ -163,10 +165,29 @@ fun MediaPreviewScreen(
                                 handleZoom(scale.value - 0.5f); true
                             }
 
+                            androidx.compose.ui.input.key.Key.NumPadAdd->{
+                                handleZoom(scale.value + 0.5f); true
+                            }
+                            androidx.compose.ui.input.key.Key.NumPadSubtract->{
+                                handleZoom(scale.value - 0.5f); true
+                            }
+
+
                             else -> false
                         }
                     } else {
                         false
+                    }
+                }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Scroll) {
+                                val scrollDelta = event.changes.firstOrNull()?.scrollDelta ?: Offset.Zero
+                                handleZoom(scale.value - scrollDelta.y * 0.1f)
+                            }
+                        }
                     }
                 }
 

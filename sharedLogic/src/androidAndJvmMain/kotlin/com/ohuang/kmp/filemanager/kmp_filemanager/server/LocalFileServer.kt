@@ -47,7 +47,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URI
-import java.net.URLDecoder
 import java.nio.charset.Charset
 import java.nio.file.Path
 import java.security.KeyStore
@@ -463,7 +462,7 @@ class LocalFileServer(private val config: ServerConfig) {
                                 call.respond("路径不能为空")
                                 return@get
                             }
-                            val decodedPath = URLDecoder.decode(path, "UTF-8")
+                            val decodedPath = decodePath(path)
                             val file = File(config.rootPath, decodedPath)
                             if (!file.exists() || !file.isFile) {
                                 call.respond("文件不存在")
@@ -546,7 +545,7 @@ class LocalFileServer(private val config: ServerConfig) {
 
     private fun resolvePath(relativePath: String): File {
         if (relativePath.isEmpty()) return File(config.rootPath)
-        val decodedPath = URLDecoder.decode(relativePath, "UTF-8")
+        val decodedPath = decodePath(relativePath)
         val file = File(config.rootPath, decodedPath)
         val canonicalRoot = File(config.rootPath).canonicalPath
         if (!file.canonicalPath.startsWith(canonicalRoot)) {
@@ -556,6 +555,34 @@ class LocalFileServer(private val config: ServerConfig) {
     }
 
     companion object {
+        /**
+         * 解码 URL 路径中的百分号编码（%XX），但不转换 + 为空格。
+         * 与 URLDecoder.decode 的区别：后者会将 + 转为空格，导致文件名中的 + 号丢失。
+         */
+        private fun decodePath(path: String): String {
+            val sb = StringBuilder()
+            var i = 0
+            while (i < path.length) {
+                when {
+                    path[i] == '%' && i + 2 < path.length -> {
+                        try {
+                            val hex = path.substring(i + 1, i + 3).toInt(16)
+                            sb.append(hex.toChar())
+                            i += 3
+                        } catch (_: NumberFormatException) {
+                            sb.append(path[i])
+                            i++
+                        }
+                    }
+                    else -> {
+                        sb.append(path[i])
+                        i++
+                    }
+                }
+            }
+            return sb.toString()
+        }
+
         private fun getKeyStoreType(path: String): String {
             val ext = path.substringAfterLast('.', "").lowercase()
             return when (ext) {

@@ -45,6 +45,7 @@ kotlin {
             dependencies {
                 implementation(libs.ktor.client.android)
                 implementation(libs.androidx.core.ktx)
+                implementation("androidx.documentfile:documentfile:1.0.1")
                 api(libs.kthttp)
             }
         }

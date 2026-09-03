@@ -1,8 +1,13 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.discovery
 
 import com.ohuang.kmp.filemanager.kmp_filemanager.Settings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.builtins.ListSerializer
 
@@ -15,29 +20,56 @@ object DeviceBindingManager {
     private val _boundDevices = MutableStateFlow<List<DeviceInfo>>(emptyList())
     val boundDevices: StateFlow<List<DeviceInfo>> = _boundDevices
 
+    var isInitialized: Boolean=false
     private val _scanDevices = MutableStateFlow<List<DeviceInfo>>(emptyList())
     val scanDevices: StateFlow<List<DeviceInfo>> = _scanDevices
     val scanner = DeviceScanner()
     private var _settings: Settings? = null
+    private val scope= CoroutineScope(Dispatchers.IO)
 
     fun init(settings: Settings) {
         _settings = settings
         loadBoundDevices()
+        isInitialized=true
+        scope.launch {
+            try {
+                scanning()
+            }catch (e:Exception){
+
+            }
+        }
+
     }
 
-    suspend fun scanOrNull():List<DeviceInfo>?{
+    suspend fun scanOrNull(timeOut: Long=2000):List<DeviceInfo>?{
         try {
-            return scan()
+            return scan(timeOut)
         }catch (_: Exception){}
         return null
     }
 
-    suspend fun scan(timeOut: Long=3000): List<DeviceInfo>{
+    suspend fun scanning(){
+        coroutineScope {
+            launch {
+                scan(2000)
+            }
+            launch {
+                scan(5000)
+            }
+            launch {
+                scan(10000)
+            }
+        }
+    }
+
+    suspend fun scan(timeOut: Long=2000): List<DeviceInfo>{
         val devices = scanner.scan(timeOut)
         _scanDevices.value=devices.toMutableList()
         updateBindDevices(devices)
         return devices
     }
+
+
 
     fun updateBindDevices(devices: List<DeviceInfo>) {
         val current = _boundDevices.value.toMutableList()

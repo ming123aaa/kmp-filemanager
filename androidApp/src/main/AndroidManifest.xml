@@ -44,6 +44,8 @@
         <activity
                 android:exported="true"
                 android:name=".MainActivity"
+
+                android:configChanges="screenLayout|screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
                 android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -54,6 +56,8 @@
         <activity
                 android:exported="false"
                 android:name=".PowerSavingActivity"
+
+                android:configChanges="screenLayout|screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
     </application>
 

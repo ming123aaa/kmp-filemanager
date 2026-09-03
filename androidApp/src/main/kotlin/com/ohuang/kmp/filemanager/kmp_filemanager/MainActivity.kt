@@ -20,10 +20,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FilePickerRequest
-
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.LocalImportRequest
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.onFilePickerResult
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.onFolderPickerResult
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.onLocalImportResult
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.onExportFolderPicked
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.pendingFilePick
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.pendingLocalImport
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.pendingExportFolderPick
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.ServerConfig
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.getServerManager
 
@@ -61,6 +65,35 @@ class MainActivity : ComponentActivity() {
     }
 
     private var currentRequest: FilePickerRequest? = null
+
+    // 本地文件导入的文件选择器
+    private val localImportLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            val uris = mutableListOf<Uri>()
+            data?.clipData?.let { clipData ->
+                for (i in 0 until clipData.itemCount) {
+                    uris.add(clipData.getItemAt(i).uri)
+                }
+            } ?: data?.data?.let { uris.add(it) }
+            onLocalImportResult(uris)
+        } else {
+            onLocalImportResult(emptyList())
+        }
+    }
+
+    // 导出文件夹选择器
+    private val exportFolderLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            onExportFolderPicked(result.data?.data)
+        } else {
+            onExportFolderPicked(null)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,6 +151,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 filePickerLauncher.launch(intent)
+            }
+
+            // 本地文件导入选择器
+            val localImportRequest by pendingLocalImport.collectAsState()
+            LaunchedEffect(localImportRequest) {
+                val request = localImportRequest ?: return@LaunchedEffect
+                val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                }
+                localImportLauncher.launch(intent)
+            }
+
+            // 导出文件夹选择器
+            val exportFolderCallback by pendingExportFolderPick.collectAsState()
+            LaunchedEffect(exportFolderCallback) {
+                val callback = exportFolderCallback ?: return@LaunchedEffect
+                val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+                exportFolderLauncher.launch(intent)
             }
 
             App(Settings(this))

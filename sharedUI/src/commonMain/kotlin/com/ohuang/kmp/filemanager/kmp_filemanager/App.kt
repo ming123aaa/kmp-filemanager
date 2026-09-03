@@ -5,8 +5,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.TextEditorNavData
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFileToLocalDir
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFilesToLocalDir
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.importFilesToLocalDir
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.pickExportFolder
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.DownloadScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.FileManagerScreen
+import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.LocalFileManagerScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.MediaFileInfo
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.MediaPreviewScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.SettingsScreen
@@ -23,7 +28,8 @@ enum class Screen {
     UPLOAD,
     TEXT_EDITOR,
     MEDIA_PREVIEW,
-    VIDEO_PLAYER
+    VIDEO_PLAYER,
+    LOCAL_FILE_MANAGER
 }
 
 @Composable
@@ -32,11 +38,18 @@ fun App(settings: Settings) {
 
         Surface(modifier = Modifier.fillMaxSize()) {
             FragmentBox {
-                var currentScreen by remember { mutableStateOf(Screen.FILE_MANAGER) }
+                val screenStack = remember { mutableStateListOf(Screen.FILE_MANAGER) }
+                val currentScreen: Screen  = screenStack.last()
+
+                fun navigateTo(screen: Screen) { screenStack.add(screen) }
+                fun goBack() { if (screenStack.size > 1) screenStack.removeAt(screenStack.lastIndex) }
+
                 var textEditorData by remember { mutableStateOf<TextEditorNavData?>(null) }
+                var textEditorIsRemote by remember { mutableStateOf(true) }
                 var uploadPath by remember { mutableStateOf("") }
                 var mediaPreviewData by remember { mutableStateOf<Pair<List<MediaFileInfo>, Int>?>(null) }
                 var videoPlayerData by remember { mutableStateOf<Pair<String, String>?>(null) }
+                var localFileManagerRootDir by remember { mutableStateOf<String?>(null) }
                 var goUpCommand by remember { mutableIntStateOf(0) }
 
                 LaunchedEffect(Unit) {
@@ -52,11 +65,12 @@ fun App(settings: Settings) {
                                 true
                             }
 
-                            currentScreen == Screen.FILE_MANAGER -> false
-                            else -> {
-                                currentScreen = Screen.FILE_MANAGER
+                            screenStack.size > 1 -> {
+                                goBack()
                                 true
                             }
+
+                            else -> false
                         }
                     }
                 }
@@ -65,64 +79,71 @@ fun App(settings: Settings) {
                     Screen.FILE_MANAGER -> {
                         FileManagerScreen(
                             settings = settings,
-                            goSetting = { currentScreen = Screen.SETTINGS },
-                            goDownload = { currentScreen = Screen.DOWNLOADS },
+                            goSetting = { navigateTo(Screen.SETTINGS) },
+                            goDownload = { navigateTo(Screen.DOWNLOADS) },
                             goUpload = {
                                 uploadPath = FileManagerState.currentPath
-                                currentScreen = Screen.UPLOAD
+                                navigateTo(Screen.UPLOAD)
                             },
                             goTextEditor = { data ->
                                 textEditorData = data
-                                currentScreen = Screen.TEXT_EDITOR
+                                textEditorIsRemote = true
+                                navigateTo(Screen.TEXT_EDITOR)
                             },
                             goMediaPreview = { mediaList, index ->
                                 mediaPreviewData = Pair(mediaList, index)
-                                currentScreen = Screen.MEDIA_PREVIEW
+                                navigateTo(Screen.MEDIA_PREVIEW)
                             },
                             goVideoPlayer = { url, fileName ->
                                 videoPlayerData = Pair(url, fileName)
-                                currentScreen = Screen.VIDEO_PLAYER
+                                navigateTo(Screen.VIDEO_PLAYER)
                             },
                             goUpSignal = goUpCommand
                         )
                     }
 
                     Screen.SETTINGS -> {
-                        SettingsScreen(onBack = { currentScreen = Screen.FILE_MANAGER })
+                        SettingsScreen(onBack = { goBack() })
                     }
 
                     Screen.DOWNLOADS -> {
-                        DownloadScreen(onBack = { currentScreen = Screen.FILE_MANAGER })
+                        DownloadScreen(
+                            onBack = { goBack() },
+                            onOpenLocalFileManager = { rootDir ->
+                                localFileManagerRootDir = rootDir
+                                navigateTo(Screen.LOCAL_FILE_MANAGER)
+                            }
+                        )
                     }
 
                     Screen.UPLOAD -> {
                         UploadScreen(
                             currentPath = uploadPath,
-                            onBack = { currentScreen = Screen.FILE_MANAGER }
+                            onBack = { goBack() }
                         )
                     }
 
                     Screen.TEXT_EDITOR -> {
-
                         val navData = textEditorData
                         if (navData != null) {
-
                             TextEditorScreen(
                                 navData = navData,
-                                isRemote = true,
-                                onBack = { currentScreen = Screen.FILE_MANAGER },
+                                isRemote = textEditorIsRemote,
+                                onBack = { goBack() },
                                 onSaved = { content ->
-                                    val r = runCatching {
-                                        ApiService.writeText(navData.filePath, content)
-                                    }
-                                    r.mapCatching {
-                                        if (it.contains("成功")) Unit
-                                        else error(it)
+                                    if (textEditorIsRemote) {
+                                        runCatching {
+                                            ApiService.writeText(navData.filePath, content)
+                                        }.mapCatching {
+                                            if (it.contains("成功")) Unit
+                                            else error(it)
+                                        }
+                                    } else {
+                                        Result.success(Unit)
                                     }
                                 }
                             )
                         }
-
                     }
 
                     Screen.MEDIA_PREVIEW -> {
@@ -131,7 +152,7 @@ fun App(settings: Settings) {
                             MediaPreviewScreen(
                                 mediaList = data.first,
                                 initialIndex = data.second,
-                                onClose = { currentScreen = Screen.FILE_MANAGER }
+                                onClose = { goBack() }
                             )
                         }
                     }
@@ -142,7 +163,52 @@ fun App(settings: Settings) {
                             VideoPlayerScreen(
                                 url = data.first,
                                 fileName = data.second,
-                                onClose = { currentScreen = Screen.FILE_MANAGER }
+                                onClose = { goBack() }
+                            )
+                        }
+                    }
+
+                    Screen.LOCAL_FILE_MANAGER -> {
+                        val rootDir = localFileManagerRootDir
+                        if (rootDir != null) {
+                            LocalFileManagerScreen(
+                                rootDir = rootDir,
+                                settings = settings,
+                                onBack = { goBack() },
+                                goMediaPreview = { mediaList, index ->
+                                    mediaPreviewData = Pair(mediaList, index)
+                                    navigateTo(Screen.MEDIA_PREVIEW)
+                                },
+                                goVideoPlayer = { url, fileName ->
+                                    videoPlayerData = Pair(url, fileName)
+                                    navigateTo(Screen.VIDEO_PLAYER)
+                                },
+                                goTextEditor = { data ->
+                                    textEditorData = data
+                                    textEditorIsRemote = false
+                                    navigateTo(Screen.TEXT_EDITOR)
+                                },
+                                onImportFiles = { currentRelativePath, onComplete ->
+                                    val targetDir = if (currentRelativePath.isEmpty()) rootDir
+                                        else "$rootDir/$currentRelativePath"
+                                    importFilesToLocalDir(targetDir) { _, _ -> onComplete() }
+                                },
+                                onExportFile = { filePath, onComplete ->
+                                    pickExportFolder { destDir ->
+                                        if (destDir != null) {
+                                            exportFileToLocalDir(filePath, destDir) { _, _ -> }
+                                        }
+                                        onComplete()
+                                    }
+                                },
+                                onExportFiles = { filePaths, onComplete ->
+                                    pickExportFolder { destDir ->
+                                        if (destDir != null) {
+                                            exportFilesToLocalDir(filePaths, destDir) { _, _ -> }
+                                        }
+                                        onComplete()
+                                    }
+                                }
                             )
                         }
                     }

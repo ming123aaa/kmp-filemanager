@@ -384,6 +384,7 @@ fun MultiSelectBottomBar(
     totalCount: Int,
     downloadEnable: Boolean,
     readOnly: Boolean,
+    isLocalFile: Boolean = false,
     onSelectAll: () -> Unit,
     onDeselectAll: () -> Unit,
     onDelete: () -> Unit,
@@ -391,6 +392,8 @@ fun MultiSelectBottomBar(
     onDownload: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val downloadLabel = if (isLocalFile) "导出" else "下载"
+    val downloadIcon = if (isLocalFile) Icons.Default.Output else Icons.Default.Download
     Surface(
         modifier = Modifier.fillMaxWidth(),
         tonalElevation = 8.dp,
@@ -431,9 +434,9 @@ fun MultiSelectBottomBar(
                         }
                         if (downloadEnable) {
                             Button(onClick = onDownload, enabled = selectedCount > 0, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(downloadIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("下载")
+                                Text(downloadLabel)
                             }
                         }
                         OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("取消") }
@@ -458,9 +461,9 @@ fun MultiSelectBottomBar(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (downloadEnable) {
                                 Button(onClick = onDownload, enabled = selectedCount > 0, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(downloadIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("下载")
+                                    Text(downloadLabel)
                                 }
                             }
                             OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("取消") }

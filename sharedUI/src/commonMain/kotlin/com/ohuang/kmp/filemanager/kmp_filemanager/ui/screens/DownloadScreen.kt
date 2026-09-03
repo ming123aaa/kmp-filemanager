@@ -37,7 +37,7 @@ private enum class DownloadFilter(val label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadScreen(onBack: () -> Unit) {
+fun DownloadScreen(onBack: () -> Unit, onOpenLocalFileManager: (String) -> Unit = {}) {
     val tasks by AppDownloadManager.tasks.collectAsState()
     val progressMessage by AppDownloadManager.progressMessage.collectAsState()
     val hasActive by AppDownloadManager.hasActiveDownloads.collectAsState()
@@ -172,8 +172,10 @@ fun DownloadScreen(onBack: () -> Unit) {
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f).clickable{
-                        if (getPlatform().type== PlatformType.Desktop){
+                        if (getPlatform().type == PlatformType.Desktop){
                             openLocalFile(HttpConfig.getDownloadDir())
+                        } else {
+                            onOpenLocalFileManager(HttpConfig.getDownloadDir())
                         }
                     }) {
                         Text(
