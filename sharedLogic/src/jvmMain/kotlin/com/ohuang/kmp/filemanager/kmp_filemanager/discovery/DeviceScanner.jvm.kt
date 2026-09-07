@@ -57,7 +57,11 @@ actual class DeviceScanner actual constructor() {
                     val responsePacket = DatagramPacket(buf, buf.size)
                     socket.receive(responsePacket)
                     val responseJson = String(responsePacket.data, 0, responsePacket.length, Charsets.UTF_8)
-                    val device = json.decodeFromString<DeviceInfo>(responseJson)
+                    val device = json.decodeFromString<DeviceInfo>(responseJson).let {
+                        if (!responsePacket.address.hostAddress.isNullOrBlank()) {
+                            it.copy(host = responsePacket.address.hostAddress)
+                        } else it
+                    }
                     if (results.none { it.deviceId == device.deviceId }) {
                         results.add(device)
                     }

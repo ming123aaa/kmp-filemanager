@@ -38,11 +38,7 @@ fun App(settings: Settings) {
 
         Surface(modifier = Modifier.fillMaxSize()) {
             FragmentBox {
-                val screenStack = remember { mutableStateListOf(Screen.FILE_MANAGER) }
-                val currentScreen: Screen  = screenStack.last()
 
-                fun navigateTo(screen: Screen) { screenStack.add(screen) }
-                fun goBack() { if (screenStack.size > 1) screenStack.removeAt(screenStack.lastIndex) }
 
                 var textEditorData by remember { mutableStateOf<TextEditorNavData?>(null) }
                 var textEditorIsRemote by remember { mutableStateOf(true) }
@@ -52,15 +48,28 @@ fun App(settings: Settings) {
                 var localFileManagerRootDir by remember { mutableStateOf<String?>(null) }
                 var goUpCommand by remember { mutableIntStateOf(0) }
 
+                val screenStack = remember { mutableStateListOf(Screen.FILE_MANAGER) }
+                val currentScreen: Screen  = screenStack.last()
+
+                fun navigateTo(screen: Screen) { screenStack.add(screen) }
+                fun goBack() {
+                    if (screenStack.size > 1) {
+                        goUpCommand = 0
+                        screenStack.removeAt(screenStack.lastIndex)
+                    }
+                }
+
+                // 使用 snapshotFlow 确保 onBackPressed 始终读取最新的 screenStack 状态
                 LaunchedEffect(Unit) {
                     FileManagerState.onBackPressed = {
+                        val current = screenStack.last()
                         when {
-                            currentScreen == Screen.FILE_MANAGER && FileManagerState.isMultiSelectMode -> {
+                            current == Screen.FILE_MANAGER && FileManagerState.isMultiSelectMode -> {
                                 FileManagerState.onExitMultiSelectMode()
                                 true
                             }
 
-                            currentScreen == Screen.FILE_MANAGER && FileManagerState.currentPath.isNotEmpty() -> {
+                            current == Screen.FILE_MANAGER && FileManagerState.currentPath.isNotEmpty() -> {
                                 goUpCommand++
                                 true
                             }

@@ -232,3 +232,27 @@ fun getLocalIpAddress(): String {
     } catch (_: Exception) {}
     return "localhost"
 }
+
+
+fun getLocalIpAddresses(): Array<String> {
+
+    val hosts = mutableListOf<String>()
+    try {
+
+        val interfaces = NetworkInterface.getNetworkInterfaces()
+        while (interfaces.hasMoreElements()) {
+            val ni = interfaces.nextElement()
+            if (ni.isLoopback || !ni.isUp) continue
+            val addresses = ni.inetAddresses
+            while (addresses.hasMoreElements()) {
+                val addr = addresses.nextElement()
+                if (addr.isLoopbackAddress) continue
+                val host = addr.hostAddress ?: continue
+                if (host.contains(':')) continue // skip IPv6
+                hosts.add(host)
+            }
+        }
+    } catch (_: Exception) {}
+    if (hosts.isEmpty()) return arrayOf("localhost")
+    return hosts.toTypedArray()
+}
