@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.TextEditorNavData
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFileToLocalDir
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFilesToLocalDir
@@ -80,6 +82,16 @@ fun App(settings: Settings) {
                             }
 
                             else -> false
+                        }
+                    }
+                }
+
+                val sharedFiles by FileManagerState.sharedFiles.collectAsState()
+                LaunchedEffect(sharedFiles) {
+                    if (sharedFiles.isNotEmpty()) {
+                        uploadPath = FileManagerState.currentPath
+                        if (screenStack.last() != Screen.UPLOAD) {
+                            navigateTo(Screen.UPLOAD)
                         }
                     }
                 }
@@ -232,4 +244,15 @@ object FileManagerState {
     var isMultiSelectMode: Boolean = false
     var onExitMultiSelectMode: () -> Unit = {}
     var onBackPressed: () -> Boolean = { false }
+
+    private val _sharedFiles = MutableStateFlow<List<String>>(emptyList())
+    val sharedFiles: StateFlow<List<String>> = _sharedFiles
+
+    fun setSharedFiles(files: List<String>) {
+        _sharedFiles.value = files
+    }
+
+    fun consumeSharedFiles() {
+        _sharedFiles.value = emptyList()
+    }
 }

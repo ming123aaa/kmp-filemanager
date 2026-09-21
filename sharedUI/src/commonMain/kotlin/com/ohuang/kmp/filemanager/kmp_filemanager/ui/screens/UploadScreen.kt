@@ -67,6 +67,7 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.data.fileSizeBytes
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.launchFilePicker
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.launchFolderPicker
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.listFilesInDirectory
+import com.ohuang.kmp.filemanager.kmp_filemanager.FileManagerState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -100,6 +101,21 @@ fun UploadScreen(
             hasCompleted = true
         }
         wasActive = hasActive
+    }
+
+    val sharedFiles by FileManagerState.sharedFiles.collectAsState()
+    LaunchedEffect(sharedFiles) {
+        if (sharedFiles.isNotEmpty()) {
+            val files = sharedFiles.map { path ->
+                UploadFileInfo(
+                    filePath = path,
+                    fileName = path.substringAfterLast("/").substringAfterLast("\\"),
+                    totalSize = fileSizeBytes(path)
+                )
+            }
+            selectedFiles = (selectedFiles + files).distinctBy { it.filePath }
+            FileManagerState.consumeSharedFiles()
+        }
     }
 
     val hasSelection = selectedFiles.isNotEmpty() || selectedFolders.isNotEmpty()

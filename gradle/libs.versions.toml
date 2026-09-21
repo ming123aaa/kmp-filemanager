@@ -1,6 +1,6 @@
 [versions]
-versionCode="100204"
-versionName="1.2.4"
+versionCode="100300"
+versionName="1.3.0"
 
 agp = "8.9.1"
 android-compileSdk = "36"

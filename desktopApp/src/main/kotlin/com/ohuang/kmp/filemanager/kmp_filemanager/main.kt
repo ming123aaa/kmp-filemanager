@@ -10,6 +10,13 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.server.getServerManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.components.ExitConfirmDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.awt.datatransfer.DataFlavor
+import java.awt.dnd.DnDConstants
+import java.awt.dnd.DropTarget
+import java.awt.dnd.DropTargetAdapter
+import java.awt.dnd.DropTargetDragEvent
+import java.awt.dnd.DropTargetDropEvent
+import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.security.KeyStore
@@ -78,6 +85,43 @@ fun main() {
                 title = "File Manager",
                 state = remember { WindowState(width = 1200.dp, height = 800.dp) }
             ) {
+
+                LaunchedEffect(Unit) {
+                    val dndListener = object : DropTargetAdapter() {
+                        override fun dragEnter(event: DropTargetDragEvent) {
+                            event.acceptDrag(DnDConstants.ACTION_COPY)
+                        }
+
+                        override fun drop(event: DropTargetDropEvent) {
+                            event.acceptDrop(DnDConstants.ACTION_COPY)
+                            try {
+                                @Suppress("UNCHECKED_CAST")
+                                val files = event.transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<File>
+                                if (!files.isNullOrEmpty()) {
+                                    val paths = files.map { it.absolutePath }
+                                    FileManagerState.setSharedFiles(paths)
+                                }
+                            } catch (_: Exception) {
+                            }
+                            event.dropComplete(true)
+                        }
+                    }
+
+                    fun registerDropTarget(comp: java.awt.Component) {
+                        DropTarget(comp, dndListener)
+                        if (comp is java.awt.Container) {
+                            for (child in comp.components) {
+                                registerDropTarget(child)
+                            }
+                            comp.addContainerListener(object : java.awt.event.ContainerAdapter() {
+                                override fun componentAdded(e: java.awt.event.ContainerEvent) {
+                                    registerDropTarget(e.child)
+                                }
+                            })
+                        }
+                    }
+                    registerDropTarget(window)
+                }
 
                 val rememberCoroutineScope = rememberCoroutineScope()
                 App(settings)

@@ -48,7 +48,9 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URI
 import java.nio.charset.Charset
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.security.KeyStore
 import kotlin.collections.emptyList
 
@@ -382,17 +384,16 @@ class LocalFileServer(private val config: ServerConfig) {
                                 return@post
                             }
 
-                            val targetDir = resolvePath(path)
-                            targetDir.mkdirs()
-                            val dest = File(targetDir, src.name)
-                            if (dest.exists()) dest.delete()
-                            if (!src.renameTo(dest)) {
-                                src.delete()
-                                call.respond("移动文件失败")
-                                return@post
+                            try {
+                                val targetDir = resolvePath(path)
+                                targetDir.mkdirs()
+                                val dest = File(targetDir, src.name)
+                                Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                call.respond("上传成功")
+                            } catch (e: Exception) {
+                                try { src.delete() } catch (_: Exception) {}
+                                call.respond("移动文件失败: ${e.message}")
                             }
-
-                            call.respond("上传成功")
 
 
                         }
@@ -440,19 +441,24 @@ class LocalFileServer(private val config: ServerConfig) {
                                 return@post
                             }
 
-                            val targetDir = resolvePath(path)
-                            targetDir.mkdirs()
-                            var successCount = 0
-                            for (src in tempFiles) {
-                                val dest = File(targetDir, src.name)
-                                if (dest.exists()) dest.delete()
-                                if (src.renameTo(dest)) {
-                                    successCount++
-                                } else {
-                                    src.delete()
+                            try {
+                                val targetDir = resolvePath(path)
+                                targetDir.mkdirs()
+                                var successCount = 0
+                                for (src in tempFiles) {
+                                    val dest = File(targetDir, src.name)
+                                    try {
+                                        Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                        successCount++
+                                    } catch (_: Exception) {
+                                        try { src.delete() } catch (_: Exception) {}
+                                    }
                                 }
+                                call.respond("成功上传 $successCount 个文件")
+                            } catch (e: Exception) {
+                                tempFiles.forEach { try { it.delete() } catch (_: Exception) {} }
+                                call.respond("移动文件失败: ${e.message}")
                             }
-                            call.respond("成功上传 $successCount 个文件")
 
                         }
 

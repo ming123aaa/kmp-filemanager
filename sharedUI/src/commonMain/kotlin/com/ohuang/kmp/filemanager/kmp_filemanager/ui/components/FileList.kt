@@ -3,6 +3,8 @@ package com.ohuang.kmp.filemanager.kmp_filemanager.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -16,6 +18,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ohuang.kmp.filemanager.kmp_filemanager.PlatformType
@@ -54,11 +62,74 @@ fun FileList(
     val coroutineScope = rememberCoroutineScope()
     var showScrollToTopButton by remember { mutableStateOf(false) }
 
+    val isDesktop = getPlatform().type == PlatformType.Desktop
+    var isDragSelecting by remember { mutableStateOf(false) }
+    var dragStartOffset by remember { mutableStateOf(Offset.Zero) }
+    var dragEndOffset by remember { mutableStateOf(Offset.Zero) }
+    val dragSelectedInCurrentSweep = remember { mutableStateSetOf<FileItem>() }
+
     LaunchedEffect(lazyGridState.firstVisibleItemIndex) {
         showScrollToTopButton = lazyGridState.firstVisibleItemIndex > 1
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (isDesktop && isMultiSelectMode) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                dragStartOffset = offset
+                                dragEndOffset = offset
+                                isDragSelecting = true
+                                dragSelectedInCurrentSweep.clear()
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                dragEndOffset = change.position
+                                val viewportY = lazyGridState.layoutInfo.viewportStartOffset
+                                val startY = dragStartOffset.y + viewportY
+                                val endY = dragEndOffset.y + viewportY
+                                val left = minOf(dragStartOffset.x, dragEndOffset.x)
+                                val right = maxOf(dragStartOffset.x, dragEndOffset.x)
+                                val top = minOf(startY, endY)
+                                val bottom = maxOf(startY, endY)
+                                val currentFrameFiles = lazyGridState.layoutInfo.visibleItemsInfo
+                                    .filter { it.index >= 0 && it.index < files.size }
+                                    .filter { item ->
+                                        val iLeft = item.offset.x.toFloat()
+                                        val iTop = item.offset.y.toFloat()
+                                        val iRight = iLeft + item.size.width
+                                        val iBottom = iTop + item.size.height
+                                        iLeft < right && iRight > left && iTop < bottom && iBottom > top
+                                    }
+                                    .map { files[it.index] }
+                                    .toSet()
+                                (currentFrameFiles - dragSelectedInCurrentSweep).forEach { onToggleFileSelection(it) }
+                                (dragSelectedInCurrentSweep - currentFrameFiles).forEach { onToggleFileSelection(it) }
+                                dragSelectedInCurrentSweep.clear()
+                                dragSelectedInCurrentSweep.addAll(currentFrameFiles)
+                            },
+                            onDragEnd = {
+                                isDragSelecting = false
+                                dragStartOffset = Offset.Zero
+                                dragEndOffset = Offset.Zero
+                                dragSelectedInCurrentSweep.clear()
+                            },
+                            onDragCancel = {
+                                isDragSelecting = false
+                                dragStartOffset = Offset.Zero
+                                dragEndOffset = Offset.Zero
+                                dragSelectedInCurrentSweep.clear()
+                            }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+    ) {
         if (isRefreshing) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
         }
@@ -176,6 +247,28 @@ fun FileList(
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Filled.Refresh, contentDescription = "刷新")
+            }
+        }
+
+        if (isDragSelecting) {
+            val left = minOf(dragStartOffset.x, dragEndOffset.x)
+            val top = minOf(dragStartOffset.y, dragEndOffset.y)
+            val right = maxOf(dragStartOffset.x, dragEndOffset.x)
+            val bottom = maxOf(dragStartOffset.y, dragEndOffset.y)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawRoundRect(
+                    color = Color(0x1A0099FF),
+                    topLeft = Offset(left, top),
+                    size = Size(right - left, bottom - top),
+                    cornerRadius = CornerRadius(4f)
+                )
+                drawRoundRect(
+                    color = Color(0xFF0099FF),
+                    topLeft = Offset(left, top),
+                    size = Size(right - left, bottom - top),
+                    cornerRadius = CornerRadius(4f),
+                    style = Stroke(2f)
+                )
             }
         }
     }

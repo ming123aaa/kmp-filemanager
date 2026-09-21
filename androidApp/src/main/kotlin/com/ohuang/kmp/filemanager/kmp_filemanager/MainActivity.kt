@@ -1,6 +1,7 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -19,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FilePickerRequest
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.LocalImportRequest
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.onFilePickerResult
@@ -28,8 +30,11 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.data.onExportFolderPicked
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.pendingFilePick
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.pendingLocalImport
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.pendingExportFolderPick
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.uriToFilePath
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.ServerConfig
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.getServerManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -100,6 +105,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         ActivityContext.init(this)
 
+        handleShareIntent(intent)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -181,6 +187,35 @@ class MainActivity : ComponentActivity() {
         stopServer()
         ActivityContext.destroy()
         super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShareIntent(intent)
+    }
+
+    private fun handleShareIntent(intent: Intent?) {
+        val intent = intent ?: return
+        if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val uris = mutableListOf<Uri>()
+            if (intent.action == Intent.ACTION_SEND_MULTIPLE) {
+                @Suppress("DEPRECATION")
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.let { uris.addAll(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uris.add(it) }
+            }
+
+            if (uris.isEmpty()) return@launch
+
+            val paths = uris.mapNotNull { uriToFilePath(it) }
+            if (paths.isNotEmpty()) {
+                FileManagerState.setSharedFiles(paths)
+            }
+        }
     }
 
 
