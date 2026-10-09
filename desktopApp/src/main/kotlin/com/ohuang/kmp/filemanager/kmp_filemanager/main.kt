@@ -50,10 +50,12 @@ fun main() {
             val savedFtpUser = HttpConfig.loadFtpUser()
             val savedFtpPassword = HttpConfig.loadFtpPassword()
             val savedFtpEnabled = HttpConfig.loadFtpEnabled()
+            val savedFtpAnonymous = HttpConfig.loadFtpAnonymous()
             val savedWebDavPort = HttpConfig.loadWebDavPort()
             val savedWebDavUser = HttpConfig.loadWebDavUser()
             val savedWebDavPassword = HttpConfig.loadWebDavPassword()
             val savedWebDavEnabled = HttpConfig.loadWebDavEnabled()
+            val savedWebDavAnonymous = HttpConfig.loadWebDavAnonymous()
             val savedWebDavUseHttps = HttpConfig.loadWebDavUseHttps()
             val savedServerUseHttps = HttpConfig.loadServerUseHttps()
             val serverManager = getServerManager()
@@ -66,10 +68,12 @@ fun main() {
                     ftpUser = savedFtpUser,
                     ftpPassword = savedFtpPassword,
                     ftpEnabled = savedFtpEnabled,
+                    ftpAnonymous = savedFtpAnonymous,
                     webDavPort = savedWebDavPort,
                     webDavUser = savedWebDavUser,
                     webDavPassword = savedWebDavPassword,
                     webDavEnabled = savedWebDavEnabled,
+                    webDavAnonymous = savedWebDavAnonymous,
                     webDavUseHttps = savedWebDavUseHttps,
                     keystorePath = HttpConfig.loadKeystorePath(),
                     keystorePassword = HttpConfig.loadKeystorePassword(),

@@ -323,10 +323,12 @@ private fun ServerManagementSection(
     var ftpUser by remember { mutableStateOf(HttpConfig.loadFtpUser()) }
     var ftpPassword by remember { mutableStateOf(HttpConfig.loadFtpPassword()) }
     var ftpEnabled by remember { mutableStateOf(HttpConfig.loadFtpEnabled()) }
+    var ftpAnonymous by remember { mutableStateOf(HttpConfig.loadFtpAnonymous()) }
     var webDavPort by remember { mutableStateOf(HttpConfig.loadWebDavPort().toString()) }
     var webDavUser by remember { mutableStateOf(HttpConfig.loadWebDavUser()) }
     var webDavPassword by remember { mutableStateOf(HttpConfig.loadWebDavPassword()) }
     var webDavEnabled by remember { mutableStateOf(HttpConfig.loadWebDavEnabled()) }
+    var webDavAnonymous by remember { mutableStateOf(HttpConfig.loadWebDavAnonymous()) }
     var webDavUseHttps by remember { mutableStateOf(HttpConfig.loadWebDavUseHttps()) }
     var keystorePath by remember { mutableStateOf(HttpConfig.loadKeystorePath()) }
     var keystorePassword by remember { mutableStateOf(HttpConfig.loadKeystorePassword()) }
@@ -392,10 +394,12 @@ private fun ServerManagementSection(
                                 ftpUser = ftpUser,
                                 ftpPassword = ftpPassword,
                                 ftpEnabled = ftpEnabled,
+                                ftpAnonymous = ftpAnonymous,
                                 webDavPort = webDavPortVal,
                                 webDavUser = webDavUser,
                                 webDavPassword = webDavPassword,
                                 webDavEnabled = webDavEnabled,
+                                webDavAnonymous = webDavAnonymous,
                                 webDavUseHttps = webDavUseHttps,
                                 keystorePath = keystorePath,
                                 keystorePassword = keystorePassword,
@@ -412,10 +416,12 @@ private fun ServerManagementSection(
                             HttpConfig.saveFtpUser(ftpUser)
                             HttpConfig.saveFtpPassword(ftpPassword)
                             HttpConfig.saveFtpEnabled(ftpEnabled)
+                            HttpConfig.saveFtpAnonymous(ftpAnonymous)
                             HttpConfig.saveWebDavPort(webDavPortVal)
                             HttpConfig.saveWebDavUser(webDavUser)
                             HttpConfig.saveWebDavPassword(webDavPassword)
                             HttpConfig.saveWebDavEnabled(webDavEnabled)
+                            HttpConfig.saveWebDavAnonymous(webDavAnonymous)
                             HttpConfig.saveWebDavUseHttps(webDavUseHttps)
                             HttpConfig.saveKeystorePath(keystorePath)
                             HttpConfig.saveKeystorePassword(keystorePassword)
@@ -576,11 +582,19 @@ private fun ServerManagementSection(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
-                            Text(
-                                "账户: ${HttpConfig.loadWebDavUser()}  密码: ${HttpConfig.loadWebDavPassword()}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                            )
+                            if (webDavAnonymous) {
+                                Text(
+                                    "匿名访问 (无需认证)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                )
+                            } else {
+                                Text(
+                                    "账户: ${HttpConfig.loadWebDavUser()}  密码: ${HttpConfig.loadWebDavPassword()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
                         }
                         IconButton(onClick = { usageDialogType = "webdav" }) {
                             Icon(
@@ -631,11 +645,19 @@ private fun ServerManagementSection(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
-                            Text(
-                                "密码: ${HttpConfig.loadFtpPassword()}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                            )
+                            if (ftpAnonymous) {
+                                Text(
+                                    "匿名访问 (无需认证)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                )
+                            } else {
+                                Text(
+                                    "密码: ${HttpConfig.loadFtpPassword()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
                         }
                         IconButton(onClick = { usageDialogType = "ftp" }) {
                             Icon(
@@ -813,23 +835,45 @@ private fun ServerManagementSection(
                             enabled = !isServerRunning
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = ftpUser,
-                            onValueChange = { ftpUser = it },
-                            label = { Text("用户名") },
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = ftpPassword,
-                            onValueChange = { ftpPassword = it },
-                            label = { Text("密码") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("匿名访问", style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    if (ftpAnonymous) "无需账号密码即可登录" else "需要账号密码登录",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = ftpAnonymous,
+                                onCheckedChange = { ftpAnonymous = it },
+                                enabled = !isServerRunning
+                            )
+                        }
+                        if (!ftpAnonymous) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = ftpUser,
+                                onValueChange = { ftpUser = it },
+                                label = { Text("用户名") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                enabled = !isServerRunning
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = ftpPassword,
+                                onValueChange = { ftpPassword = it },
+                                label = { Text("密码") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                enabled = !isServerRunning
+                            )
+                        }
 
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -885,23 +929,45 @@ private fun ServerManagementSection(
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = webDavUser,
-                            onValueChange = { webDavUser = it },
-                            label = { Text("用户名") },
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = webDavPassword,
-                            onValueChange = { webDavPassword = it },
-                            label = { Text("密码") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isServerRunning
-                        )
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("匿名访问", style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    if (webDavAnonymous) "无需账号密码即可登录" else "需要账号密码登录",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = webDavAnonymous,
+                                onCheckedChange = { webDavAnonymous = it },
+                                enabled = !isServerRunning
+                            )
+                        }
+                        if (!webDavAnonymous) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = webDavUser,
+                                onValueChange = { webDavUser = it },
+                                label = { Text("用户名") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                enabled = !isServerRunning
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = webDavPassword,
+                                onValueChange = { webDavPassword = it },
+                                label = { Text("密码") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                enabled = !isServerRunning
+                            )
+                        }
 
                     }
 

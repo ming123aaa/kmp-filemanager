@@ -419,6 +419,8 @@ class WebDavServer(private val config: ServerConfig) {
     }
 
     private suspend fun checkAuth(call: ApplicationCall): Boolean {
+        if (config.webDavAnonymous) return true
+
         val authHeader = call.request.requestHeader("Authorization") ?: run {
             call.response.header("WWW-Authenticate", "Basic realm=\"WebDAV\"")
             call.respond(HttpStatusCode.Unauthorized)

@@ -103,7 +103,10 @@ object JvmServerManager : ServerManager {
                 if (_currentConfig.ftpEnabled) {
                     ftpServer = FtpServer(_currentConfig)
                     _ftpAccessUrl.value =
-                        if (_currentConfig.ftpEnabled) "ftp://${_currentConfig.ftpUser}@$host:${_currentConfig.ftpPort}/" else null
+                        if (_currentConfig.ftpEnabled) {
+                            if (_currentConfig.ftpAnonymous) "ftp://$host:${_currentConfig.ftpPort}/"
+                            else "ftp://${_currentConfig.ftpUser}:${_currentConfig.ftpPassword}@$host:${_currentConfig.ftpPort}/"
+                        } else null
 
                     ftpServer?.start({ e->
                         _ftpAccessUrl.value = "服务错误:" + e.message
@@ -128,7 +131,11 @@ object JvmServerManager : ServerManager {
                         _currentConfig
                     )
                     _webDavAccessUrl.value =
-                        if (_currentConfig.webDavEnabled) "${if (_currentConfig.webDavUseHttps) "https" else "http"}://$host:${_currentConfig.webDavPort}/" else null
+                        if (_currentConfig.webDavEnabled) {
+                            val protocol = if (_currentConfig.webDavUseHttps) "https" else "http"
+                            if (_currentConfig.webDavAnonymous) "$protocol://$host:${_currentConfig.webDavPort}/"
+                            else "$protocol://${_currentConfig.webDavUser}:${_currentConfig.webDavPassword}@$host:${_currentConfig.webDavPort}/"
+                        } else null
                     webDavServer?.start({e->
                         _webDavAccessUrl.value = "服务错误:" + e.message
                     })

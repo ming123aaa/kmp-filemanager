@@ -7,11 +7,16 @@ import kotlinx.coroutines.launch
 import org.apache.ftpserver.FtpServerFactory
 import org.apache.ftpserver.listener.ListenerFactory
 import org.apache.ftpserver.usermanager.ClearTextPasswordEncryptor
+import org.apache.ftpserver.usermanager.UsernamePasswordAuthentication
 import org.apache.ftpserver.usermanager.impl.BaseUser
 import org.apache.ftpserver.usermanager.impl.ConcurrentLoginPermission
 import org.apache.ftpserver.usermanager.impl.PropertiesUserManager
 import org.apache.ftpserver.usermanager.impl.TransferRatePermission
 import org.apache.ftpserver.usermanager.impl.WritePermission
+import org.apache.ftpserver.ftplet.Authentication
+import org.apache.ftpserver.ftplet.AuthenticationFailedException
+import org.apache.ftpserver.ftplet.User
+import org.apache.ftpserver.ftplet.UserManager
 import java.io.File
 
 class FtpServer(private val config: ServerConfig) {
@@ -33,14 +38,6 @@ class FtpServer(private val config: ServerConfig) {
                 }
                 factory.addListener("default", listenerFactory.createListener())
 
-                val userDataFile = File.createTempFile("ftp_users_", ".properties").also {
-                    it.deleteOnExit()
-                }
-                val userManager = PropertiesUserManager(
-                    ClearTextPasswordEncryptor(),
-                    userDataFile,
-                    "admin"
-                )
                 val authorities = if (config.readOnly) {
                     listOf(
                         ConcurrentLoginPermission(0, 0),
@@ -53,16 +50,56 @@ class FtpServer(private val config: ServerConfig) {
                         WritePermission()
                     )
                 }
-                val user = BaseUser().apply {
-                    name = config.ftpUser
-                    password = config.ftpPassword
-                    homeDirectory = File(config.rootPath).absolutePath
-                    setEnabled(true)
-                    maxIdleTime = 0
-                    setAuthorities(authorities)
+
+                if (config.ftpAnonymous) {
+                    val homeDir = File(config.rootPath).absolutePath
+                    factory.userManager = object : UserManager {
+                        override fun doesExist(username: String?) = true
+                        override fun authenticate(auth: Authentication?): User {
+                            val username = (auth as? UsernamePasswordAuthentication)?.username ?: "anonymous"
+                            return BaseUser().apply {
+                                name = username
+                                password = ""
+                                homeDirectory = homeDir
+                                setEnabled(true)
+                                maxIdleTime = 0
+                                setAuthorities(authorities)
+                            }
+                        }
+                        override fun getUserByName(username: String?) = BaseUser().apply {
+                            name = username ?: "anonymous"
+                            password = ""
+                            homeDirectory = homeDir
+                            setEnabled(true)
+                            maxIdleTime = 0
+                            setAuthorities(authorities)
+                        }
+                        override fun getAllUserNames() = arrayOf("anonymous")
+                        override fun delete(username: String?) {}
+                        override fun save(user: User?) {}
+                        override fun getAdminName() = "admin"
+                        override fun isAdmin(username: String?) = false
+                    }
+                } else {
+                    val userDataFile = File.createTempFile("ftp_users_", ".properties").also {
+                        it.deleteOnExit()
+                    }
+                    val userManager = PropertiesUserManager(
+                        ClearTextPasswordEncryptor(),
+                        userDataFile,
+                        "admin"
+                    )
+                    val user = BaseUser().apply {
+                        name = config.ftpUser
+                        password = config.ftpPassword
+                        homeDirectory = File(config.rootPath).absolutePath
+                        setEnabled(true)
+                        maxIdleTime = 0
+                        setAuthorities(authorities)
+                    }
+                    userManager.save(user)
+                    factory.userManager = userManager
                 }
-                userManager.save(user)
-                factory.userManager = userManager
 
                 server = factory.createServer()
                 server?.start()

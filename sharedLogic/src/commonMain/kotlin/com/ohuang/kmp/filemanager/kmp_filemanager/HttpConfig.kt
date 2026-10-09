@@ -188,6 +188,16 @@ object HttpConfig {
         return settings.getBoolean("ftp_enabled", true)
     }
 
+    fun saveFtpAnonymous(anonymous: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("ftp_anonymous", anonymous)
+    }
+
+    fun loadFtpAnonymous(): Boolean {
+        val settings = _settings ?: return false
+        return settings.getBoolean("ftp_anonymous", false)
+    }
+
     fun saveWebDavPort(port: Int) {
         val settings = _settings ?: return
         settings.putString("webdav_port", port.toString())
@@ -226,6 +236,16 @@ object HttpConfig {
     fun loadWebDavEnabled(): Boolean {
         val settings = _settings ?: return true
         return settings.getBoolean("webdav_enabled", true)
+    }
+
+    fun saveWebDavAnonymous(anonymous: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("webdav_anonymous", anonymous)
+    }
+
+    fun loadWebDavAnonymous(): Boolean {
+        val settings = _settings ?: return false
+        return settings.getBoolean("webdav_anonymous", false)
     }
 
     fun saveWebDavUseHttps(useHttps: Boolean) {

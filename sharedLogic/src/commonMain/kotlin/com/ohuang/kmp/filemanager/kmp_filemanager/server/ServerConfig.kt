@@ -12,10 +12,12 @@ data class ServerConfig(
     val ftpUser: String = "admin",
     val ftpPassword: String = "admin",
     val ftpEnabled: Boolean = true,
+    val ftpAnonymous: Boolean = false,
     val webDavPort: Int = 8081,
     val webDavUser: String = "admin",
     val webDavPassword: String = "admin",
     val webDavEnabled: Boolean = true,
+    val webDavAnonymous: Boolean = false,
     // HTTPS 配置
     val webDavUseHttps: Boolean = false,
     val keystorePath: String = "",
