@@ -32,7 +32,7 @@ actual class DeviceScanner actual constructor() {
         return addresses
     }
 
-    actual suspend fun scan(timeoutMs: Long): List<DeviceInfo> = withContext(Dispatchers.IO) {
+    actual suspend fun scan(timeoutMs: Long,update:(List<DeviceInfo>)->Unit): List<DeviceInfo> = withContext(Dispatchers.IO) {
         cancelled = false
         val results = mutableListOf<DeviceInfo>()
         var socket: DatagramSocket? = null
@@ -64,6 +64,7 @@ actual class DeviceScanner actual constructor() {
                     }
                     if (results.none { it.deviceId == device.deviceId }) {
                         results.add(device)
+                        update(results)
                     }
                 } catch (_: SocketTimeoutException) {
                     break

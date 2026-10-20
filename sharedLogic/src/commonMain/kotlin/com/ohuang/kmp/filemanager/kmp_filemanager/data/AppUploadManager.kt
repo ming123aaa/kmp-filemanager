@@ -1,5 +1,3 @@
-
-
 package com.ohuang.kmp.filemanager.kmp_filemanager.data
 
 
@@ -108,6 +106,12 @@ object AppUploadManager {
         .map { map -> map.values.any { it.status == UploadTask.Status.UPLOADING || it.status == UploadTask.Status.PENDING } }
         .stateIn(scope, SharingStarted.Eagerly, false)
 
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
+    private val _hasCompleted = MutableStateFlow(false)
+    val hasCompleted: StateFlow<Boolean> = _hasCompleted.asStateFlow()
+
     @Volatile
     var uploadJob: Deferred<String>? = null
 
@@ -149,17 +153,35 @@ object AppUploadManager {
         _tasks.value=emptyMap()
         isCancelled = true
         uploadJob?.cancel()
+        _hasCompleted.value = false
         scope.launch {
             delay(100)
             _tasks.value=emptyMap()
         }
     }
 
-
-
+    fun startUpload(files: List<UploadFileInfo>, folders: List<String>, remotePath: String) {
+        if (files.isEmpty() && folders.isEmpty()) return
+        _hasCompleted.value = false
+        _isScanning.value = true
+        scope.launch {
+            try {
+                val folderFiles = folders.flatMap { folder ->
+                    awaitFilesInDirectory(folder)
+                }
+                val allFiles = (files + folderFiles).distinctBy { it.filePath }
+                _isScanning.value = false
+                if (allFiles.isEmpty()) return@launch
+                addFiles(allFiles, remotePath)
+            } catch (e: Exception) {
+                _isScanning.value = false
+            }
+        }
+    }
 
     private suspend fun processQueue() {
         isCancelled = false
+        _hasCompleted.value = false
 
         val pending = _tasks.value.filter { it.value.status == UploadTask.Status.PENDING }
             .values
@@ -183,6 +205,7 @@ object AppUploadManager {
             _progressMessage.value="已取消"
         }else{
             _progressMessage.value = "上传完成:${successNum}/${pending.size}"
+            _hasCompleted.value = true
         }
 
     }
@@ -286,5 +309,9 @@ object AppUploadManager {
 
     fun destroy() {
         scope.cancel()
+    }
+
+    fun resetCompleted() {
+        _hasCompleted.value = false
     }
 }

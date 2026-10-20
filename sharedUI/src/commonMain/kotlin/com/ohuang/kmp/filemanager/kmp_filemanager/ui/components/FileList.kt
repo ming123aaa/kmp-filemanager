@@ -24,8 +24,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import com.ohuang.kmp.filemanager.kmp_filemanager.PlatformType
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FileItem
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.ViewMode
@@ -138,17 +140,16 @@ fun FileList(
             EmptyState()
         } else {
             val minSize = if (viewMode == ViewMode.PREVIEW) {
-                if (getPlatform().type == PlatformType.Desktop) {
-                    220.dp
-                } else {
-                    170.dp
-                }
+                val maxWidth = LocalWindowInfo.current.containerDpSize.width
+                val count = maxWidth / 100.dp
+
+                130.dp + (10.dp * count)
+
             } else {
-                if (getPlatform().type == PlatformType.Desktop) {
-                    180.dp
-                } else {
-                    150.dp
-                }
+                val maxWidth = LocalWindowInfo.current.containerDpSize.width
+                val count = maxWidth / 100.dp
+                130.dp + (5.dp * count)
+
             }
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = minSize),

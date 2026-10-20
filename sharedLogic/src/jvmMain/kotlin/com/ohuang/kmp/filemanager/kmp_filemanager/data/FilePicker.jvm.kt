@@ -37,3 +37,5 @@ actual fun launchFolderPicker(onResult: (String?) -> Unit) {
 }
 
 actual fun fileSizeBytes(path: String): Long = File(path).length()
+
+actual fun fileNameFromPath(path: String): String = File(path).name

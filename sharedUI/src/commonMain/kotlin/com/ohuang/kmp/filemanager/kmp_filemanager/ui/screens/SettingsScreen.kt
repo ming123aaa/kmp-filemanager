@@ -33,6 +33,8 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.server.getServerManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -167,7 +169,9 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                                                 isTesting = true
                                                 testResult = null
                                                 try {
-                                                    val result = ApiService.testConnect(serverUrl)
+                                                    val result = withTimeout(3000.milliseconds){
+                                                        ApiService.testConnect(serverUrl)
+                                                    }
                                                     testResult =
                                                         if (result.lowercase()
                                                                 .contains("read")
@@ -1159,7 +1163,6 @@ private fun DeviceScanSection(
                                     scope.launch {
                                         onSwitchToBoundDevice(device.deviceId)
                                         connectMsg = ""
-                                        DeviceBindingManager.scanOrNull()
                                         connectMsg = HttpConfig.checkConnect()
                                     }
                                 },
@@ -1205,7 +1208,7 @@ private fun DeviceScanSection(
                 isScanning = true
                 scanError = null
                 try {
-                    DeviceBindingManager.scanning()
+                    DeviceBindingManager.scan()
                 } catch (e: Exception) {
                     scanError = "扫描失败: ${e.message}"
                 }
@@ -1313,7 +1316,7 @@ private fun DeviceScanSection(
                                 onClick = {
                                     scope.launch {
 
-                                        DeviceBindingManager.updateDevice(device)
+                                        DeviceBindingManager.bindDevice(device)
                                         onSwitchToBoundDevice(device.deviceId)
                                         connectMsg = ""
                                         connectMsg = HttpConfig.checkConnect()

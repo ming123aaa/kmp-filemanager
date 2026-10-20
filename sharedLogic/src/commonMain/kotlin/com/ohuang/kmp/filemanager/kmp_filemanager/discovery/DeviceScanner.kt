@@ -10,7 +10,7 @@ expect class DeviceScanner() {
      * @param timeoutMs 扫描超时时间（毫秒），默认 3000ms
      * @return 发现的设备列表
      */
-    suspend fun scan(timeoutMs: Long = 3000): List<DeviceInfo>
+    suspend fun scan(timeoutMs: Long = 3000,update:(List<DeviceInfo>)->Unit={}): List<DeviceInfo>
 
     /** 取消正在进行的扫描 */
     fun cancel()

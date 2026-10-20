@@ -63,6 +63,9 @@ actual fun fileSizeBytes(path: String): Long {
     }
 }
 
+actual fun fileNameFromPath(path: String): String =
+    path.substringAfterLast("/").substringAfterLast("\\").ifBlank { "unknown_file" }
+
 private fun presentPicker(picker: UIDocumentPickerViewController) {
     val rootViewController = UIApplication.sharedApplication.keyWindow?.rootViewController
         ?: UIApplication.sharedApplication.windows.firstOrNull()?.rootViewController

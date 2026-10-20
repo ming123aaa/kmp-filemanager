@@ -1,14 +1,11 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager.data
 
-import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.provider.OpenableColumns
 import com.ohuang.kmp.filemanager.kmp_filemanager.ActivityContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
-
 
 
 data class FilePickerRequest(
@@ -50,47 +47,23 @@ private fun resolveFolderPath(uri: Uri?): String? {
     }
 }
 
+/**
+ * 将 content URI 转换为真实文件路径。
+ * 优先路径解析（零复制），兜底复制到缓存目录。
+ */
 fun uriToFilePath(uri: Uri): String? {
     return try {
         val ctx = ActivityContext.get() ?: return null
-
-        // 尝试从 ContentResolver 获取文件名
-        var fileName: String? = null
-        val projection = arrayOf(OpenableColumns.DISPLAY_NAME)
-        ctx.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (nameIndex >= 0) {
-                    fileName = cursor.getString(nameIndex)
-                }
-            }
-        }
-
-        // 回退: 从 URI 路径中提取文件名
-        if (fileName.isNullOrBlank()) {
-            fileName = uri.lastPathSegment
-                ?.substringAfterLast("/")
-                ?.substringAfterLast("\\")
-            if (fileName.isNullOrBlank()) {
-                fileName = "unknown_file"
-            }
-        }
-
-        // 复制文件到缓存目录
-        val cacheDir = File(ctx.cacheDir, "upload_cache")
-        if (!cacheDir.exists()) cacheDir.mkdirs()
-        val file = File(cacheDir, fileName)
-        ctx.contentResolver.openInputStream(uri)?.use { input ->
-            file.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        } ?: return null
-
-        file.absolutePath
+        UriToFile.uriToFile(uri, ctx)?.absolutePath
     } catch (e: Exception) {
         null
     }
 }
+
+actual fun fileNameFromPath(path: String): String =
+    File(path).name.ifBlank { "unknown_file" }
+
+actual fun fileSizeBytes(path: String): Long = File(path).length()
 
 actual fun launchFilePicker(allowMultiple: Boolean, onResult: (List<String>) -> Unit) {
     _pendingFilePick.value = FilePickerRequest(
@@ -109,5 +82,3 @@ actual fun launchFolderPicker(onResult: (String?) -> Unit) {
         }
     )
 }
-
-actual fun fileSizeBytes(path: String): Long = File(path).length()

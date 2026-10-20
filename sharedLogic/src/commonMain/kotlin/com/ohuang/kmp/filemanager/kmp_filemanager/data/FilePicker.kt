@@ -5,3 +5,5 @@ expect fun launchFilePicker(allowMultiple: Boolean, onResult: (List<String>) -> 
 expect fun launchFolderPicker(onResult: (String?) -> Unit)
 
 expect fun fileSizeBytes(path: String): Long
+
+expect fun fileNameFromPath(path: String): String

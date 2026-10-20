@@ -4,6 +4,8 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.data.FileManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.discovery.DeviceBindingManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class ConnectionMode {
     /** 手动输入 URL */
@@ -46,19 +48,27 @@ object HttpConfig {
         return baseUrl.ifEmpty { DEFAULT_BASE_URL }
     }
 
+    suspend fun scanDevice(){
+        if (isBoundDevice()) {
+            DeviceBindingManager.scanById(deviceId = boundDeviceId,2000)
+        }
+    }
+
     suspend fun checkConnect(): String {
         var msg = ""
         try {
             if (isBoundDevice() && !isScanned) {
                 isScanned = true
-                DeviceBindingManager.scanOrNull()
+                scanDevice()
             }
-            val result = ApiService.testConnect()
+            val result = withTimeout(2000.milliseconds){
+                ApiService.testConnect()
+            }
             msg=result
             _readOnlyFlow.value = result.lowercase().contains("read")
         } catch (e: Exception) {
             if (isBoundDevice()) {
-                DeviceBindingManager.scanOrNull()
+                scanDevice()
             }
             msg= e.message.toString()
         }
@@ -316,6 +326,7 @@ object HttpConfig {
         val settings = _settings ?: return
         settings.putString("connection_mode", mode.name)
         connectionMode = mode
+        isScanned=false
     }
 
     private fun loadConnectionMode() {
@@ -336,6 +347,7 @@ object HttpConfig {
         val settings = _settings ?: return
         settings.putString("bound_device_id", deviceId)
         boundDeviceId = deviceId
+        isScanned=false
     }
 
     private fun loadBoundDeviceId() {

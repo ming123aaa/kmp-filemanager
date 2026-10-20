@@ -77,7 +77,6 @@ actual suspend fun uploadFileImpl(
     path: String,
     onProgress: (current: Long, total: Long) -> Unit
 ): String {
-
     val file = File(filePath)
 
     return httpClient.stringCall {

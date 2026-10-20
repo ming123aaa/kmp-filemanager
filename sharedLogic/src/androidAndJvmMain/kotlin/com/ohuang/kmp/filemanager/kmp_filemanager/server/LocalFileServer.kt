@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -134,21 +135,22 @@ class LocalFileServer(private val config: ServerConfig) {
                     route("/main") {
                         get("/getAllFile") {
                             val path = call.request.queryParameters["path"] ?: ""
-                            val dir = resolvePath(path)
-                            if (!dir.exists() || !dir.isDirectory) {
-                                call.respond(emptyList<FileItem>())
-                                return@get
+                            val files = withContext(Dispatchers.IO) {
+                                val dir = resolvePath(path)
+                                if (!dir.exists() || !dir.isDirectory) {
+                                    return@withContext emptyList<FileItem>()
+                                }
+                                dir.listFiles()?.map { file ->
+                                    FileItem(
+                                        name = file.name,
+                                        length = if (file.isFile) file.length() else 0L,
+                                        isFolder = file.isDirectory,
+                                        lastModified = file.lastModified()
+                                    )
+                                }?.sortedWith(
+                                    compareBy<FileItem> { !it.isFolder }.thenBy { it.name.lowercase() }
+                                ) ?: emptyList()
                             }
-                            val files = dir.listFiles()?.map { file ->
-                                FileItem(
-                                    name = file.name,
-                                    length = if (file.isFile) file.length() else 0L,
-                                    isFolder = file.isDirectory,
-                                    lastModified = file.lastModified()
-                                )
-                            }?.sortedWith(
-                                compareBy<FileItem> { !it.isFolder }.thenBy { it.name.lowercase() }
-                            ) ?: emptyList()
                             call.respond(files)
                         }
 
@@ -225,13 +227,16 @@ class LocalFileServer(private val config: ServerConfig) {
                                 call.respond("路径不能为空")
                                 return@post
                             }
-                            val file = resolvePath(path)
-                            if (!file.exists()) {
-                                call.respond("文件不存在")
-                                return@post
+                            val result = withContext(Dispatchers.IO) {
+                                val file = resolvePath(path)
+                                if (!file.exists()) {
+                                    "文件不存在"
+                                } else {
+                                    val success = file.deleteRecursively()
+                                    if (success) "删除成功" else "删除失败"
+                                }
                             }
-                            val success = file.deleteRecursively()
-                            call.respond(if (success) "删除成功" else "删除失败")
+                            call.respond(result)
                         }
 
                         post("/rename") {
@@ -246,18 +251,29 @@ class LocalFileServer(private val config: ServerConfig) {
                                 call.respond("参数不完整")
                                 return@post
                             }
-                            val file = resolvePath(path)
-                            if (!file.exists()) {
-                                call.respond("文件不存在")
-                                return@post
+                            val result = withContext(Dispatchers.IO) {
+                                val file = resolvePath(path)
+                                if (!file.exists()) {
+                                    return@withContext "文件不存在"
+                                }
+                                val newFile = File(file.parentFile, newName)
+                                if (newFile.exists()) {
+                                    return@withContext "目标名称已存在"
+                                }
+                                // 先尝试 rename，大文件可能静默失败，回退 copy
+                                var success = file.renameTo(newFile)
+                                if (!success) {
+                                    try {
+                                        Files.copy(file.toPath(), newFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                        success = newFile.exists() && newFile.length() == file.length()
+                                        if (success) file.delete() else newFile.delete()
+                                    } catch (_: Exception) {
+                                        success = false
+                                    }
+                                }
+                                if (success) "重命名成功" else "重命名失败"
                             }
-                            val newFile = File(file.parentFile, newName)
-                            if (newFile.exists()) {
-                                call.respond("目标名称已存在")
-                                return@post
-                            }
-                            val success = file.renameTo(newFile)
-                            call.respond(if (success) "重命名成功" else "重命名失败")
+                            call.respond(result)
                         }
 
                         post("/move") {
@@ -272,23 +288,33 @@ class LocalFileServer(private val config: ServerConfig) {
                                 call.respond("参数不完整")
                                 return@post
                             }
-                            val file = resolvePath(path)
-                            if (!file.exists()) {
-                                call.respond("文件不存在")
-                                return@post
+                            val result = withContext(Dispatchers.IO) {
+                                val file = resolvePath(path)
+                                if (!file.exists()) {
+                                    return@withContext "文件不存在"
+                                }
+                                val targetDirFile = resolvePath(targetDir)
+                                if (!targetDirFile.exists() || !targetDirFile.isDirectory) {
+                                    return@withContext "目标目录不存在"
+                                }
+                                val target = File(targetDirFile, file.name)
+                                if (target.exists()) {
+                                    return@withContext "目标位置已存在同名文件"
+                                }
+                                // 先尝试 rename，大文件静默失败则回退 copy
+                                var success = file.renameTo(target)
+                                if (!success) {
+                                    try {
+                                        Files.copy(file.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                        success = target.exists() && target.length() == file.length()
+                                        if (success) file.delete() else target.delete()
+                                    } catch (_: Exception) {
+                                        success = false
+                                    }
+                                }
+                                if (success) "移动成功" else "移动失败"
                             }
-                            val targetDirFile = resolvePath(targetDir)
-                            if (!targetDirFile.exists() || !targetDirFile.isDirectory) {
-                                call.respond("目标目录不存在")
-                                return@post
-                            }
-                            val target = File(targetDirFile, file.name)
-                            if (target.exists()) {
-                                call.respond("目标位置已存在同名文件")
-                                return@post
-                            }
-                            val success = file.renameTo(target)
-                            call.respond(if (success) "移动成功" else "移动失败")
+                            call.respond(result)
                         }
 
                         get("/readText") {
@@ -309,7 +335,7 @@ class LocalFileServer(private val config: ServerConfig) {
                                 } catch (_: Exception) {
                                     Charsets.UTF_8
                                 }
-                                val text = file.readText(charset)
+                                val text = withContext(Dispatchers.IO) { file.readText(charset) }
                                 call.respondText(text, ContentType.Text.Plain)
                             } catch (e: Exception) {
                                 call.respond("读取失败: ${e.message}")
@@ -329,13 +355,16 @@ class LocalFileServer(private val config: ServerConfig) {
                                 return@post
                             }
                             val file = resolvePath(path)
-                            try {
-                                file.parentFile?.mkdirs()
-                                file.writeText(txt, Charsets.UTF_8)
-                                call.respond("保存成功")
-                            } catch (e: Exception) {
-                                call.respond("保存失败: ${e.message}")
+                            val result = withContext(Dispatchers.IO) {
+                                try {
+                                    file.parentFile?.mkdirs()
+                                    file.writeText(txt, Charsets.UTF_8)
+                                    "保存成功"
+                                } catch (e: Exception) {
+                                    "保存失败: ${e.message}"
+                                }
                             }
+                            call.respond(result)
                         }
 
                         post("/fileUpload") {
@@ -384,16 +413,35 @@ class LocalFileServer(private val config: ServerConfig) {
                                 return@post
                             }
 
-                            try {
-                                val targetDir = resolvePath(path)
-                                targetDir.mkdirs()
-                                val dest = File(targetDir, src.name)
-                                Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                                call.respond("上传成功")
-                            } catch (e: Exception) {
-                                try { src.delete() } catch (_: Exception) {}
-                                call.respond("移动文件失败: ${e.message}")
+                            val result = withContext(Dispatchers.IO) {
+                                try {
+                                    val targetDir = resolvePath(path)
+                                    targetDir.mkdirs()
+                                    val dest = File(targetDir, src.name)
+                                    // 先尝试 rename（同文件系统 O(1)），失败/静默失败则回退 copy
+                                    var moved = false
+                                    try {
+                                        Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                        moved = dest.exists()
+                                    } catch (_: Exception) {
+                                        moved = false
+                                    }
+                                    if (!moved) {
+                                        Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                        if (dest.exists() && dest.length() == src.length()) {
+                                            src.delete()
+                                        } else {
+                                            dest.delete()
+                                            return@withContext "移动文件失败: 文件大小不匹配"
+                                        }
+                                    }
+                                    "上传成功"
+                                } catch (e: Exception) {
+                                    try { src.delete() } catch (_: Exception) {}
+                                    "移动文件失败: ${e.message}"
+                                }
                             }
+                            call.respond(result)
 
 
                         }
@@ -441,24 +489,43 @@ class LocalFileServer(private val config: ServerConfig) {
                                 return@post
                             }
 
-                            try {
-                                val targetDir = resolvePath(path)
-                                targetDir.mkdirs()
-                                var successCount = 0
-                                for (src in tempFiles) {
-                                    val dest = File(targetDir, src.name)
-                                    try {
-                                        Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                                        successCount++
-                                    } catch (_: Exception) {
-                                        try { src.delete() } catch (_: Exception) {}
+                            val result = withContext(Dispatchers.IO) {
+                                try {
+                                    val targetDir = resolvePath(path)
+                                    targetDir.mkdirs()
+                                    var successCount = 0
+                                    for (src in tempFiles) {
+                                        val dest = File(targetDir, src.name)
+                                        try {
+                                            var moved = false
+                                            try {
+                                                Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                                moved = dest.exists()
+                                            } catch (_: Exception) {
+                                                moved = false
+                                            }
+                                            if (!moved) {
+                                                Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                                                if (dest.exists() && dest.length() == src.length()) {
+                                                    src.delete()
+                                                    successCount++
+                                                } else {
+                                                    dest.delete()
+                                                }
+                                            } else {
+                                                successCount++
+                                            }
+                                        } catch (_: Exception) {
+                                            try { src.delete() } catch (_: Exception) {}
+                                        }
                                     }
+                                    "成功上传 $successCount 个文件"
+                                } catch (e: Exception) {
+                                    tempFiles.forEach { try { it.delete() } catch (_: Exception) {} }
+                                    "移动文件失败: ${e.message}"
                                 }
-                                call.respond("成功上传 $successCount 个文件")
-                            } catch (e: Exception) {
-                                tempFiles.forEach { try { it.delete() } catch (_: Exception) {} }
-                                call.respond("移动文件失败: ${e.message}")
                             }
+                            call.respond(result)
 
                         }
 
