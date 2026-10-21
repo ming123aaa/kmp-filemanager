@@ -558,6 +558,10 @@ body {
 }
 .modal-body {
   padding: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .modal-footer {
   display: flex;
@@ -565,6 +569,32 @@ body {
   gap: 8px;
   padding: 16px;
   border-top: 1px solid var(--border);
+}
+
+/* Batch delete file list */
+.delete-batch-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.delete-batch-list .file-item {
+  color: var(--text);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+.delete-batch-list .file-item:hover {
+  background: var(--bg-hover);
+}
+.delete-batch-list .file-more {
+  color: var(--text-light);
+  font-style: italic;
+  padding: 2px 4px;
 }
 
 /* Form */

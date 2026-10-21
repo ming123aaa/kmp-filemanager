@@ -991,6 +991,8 @@ function renameItem() {
 function showDeleteModal(name, isFolder) {
   deleteTarget = {name, isFolder};
   document.getElementById('deleteName').textContent = name;
+  document.getElementById('deleteSingleInfo').style.display = 'block';
+  document.getElementById('deleteBatchInfo').style.display = 'none';
   document.getElementById('deleteModal').classList.add('show');
 }
 
@@ -1022,15 +1024,31 @@ function showDeleteSelectedModal() {
   }
   
   // 多个选择时，显示确认弹窗
-  document.getElementById('deleteName').textContent = names.join(', ');
+  document.getElementById('deleteSingleInfo').style.display = 'none';
+  document.getElementById('deleteBatchInfo').style.display = 'block';
+  document.getElementById('deleteBatchCount').textContent = count;
+  
+  // 最多显示前 5 个文件名，其余显示 "+N more"
+  const maxShow = 5;
+  const showNames = names.slice(0, maxShow);
+  const moreCount = count - maxShow;
+  
+  let listHtml = '';
+  showNames.forEach(n => {
+    listHtml += `<div class="file-item">${escapeHtml(n)}</div>`;
+  });
+  if (moreCount > 0) {
+    listHtml += `<div class="file-more">... 以及其他 ${moreCount} 个项目</div>`;
+  }
+  
+  document.getElementById('deleteBatchList').innerHTML = listHtml;
   document.getElementById('deleteModal').classList.add('show');
+  
   // 修改删除按钮文字
   const deleteBtn = document.querySelector('#deleteModal .btn-danger');
   if (deleteBtn) {
-    deleteBtn.textContent = `删除 (${count})`;
     deleteBtn.innerHTML = `<span class="material-icons" style="font-size:14px">delete</span>删除 (${count})`;
   }
-  // 临时替换 deleteItem 函数
   window._batchDelete = true;
 }
 
@@ -1231,9 +1249,12 @@ function closeModal(id) {
   }
   if (id === 'deleteModal') {
     window._batchDelete = false;
+    // 重置弹窗显示状态为默认（单个删除）
+    document.getElementById('deleteSingleInfo').style.display = 'block';
+    document.getElementById('deleteBatchInfo').style.display = 'none';
+    document.getElementById('deleteBatchList').innerHTML = '';
     const deleteBtn = document.querySelector('#deleteModal .btn-danger');
     if (deleteBtn) {
-      deleteBtn.textContent = '删除';
       deleteBtn.innerHTML = '<span class="material-icons" style="font-size:14px">delete</span>删除';
     }
   }
