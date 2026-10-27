@@ -53,24 +53,18 @@ actual fun getHttpsKeystorePath(): String {
 
 
      return HttpClient(CIO) {
-
          engine {
              https {
-
-
-                 https {
-                     trustManager = object : X509TrustManager {
-                         override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-                             // 不校验客户端证书
-
-                         }
-
-                         override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-                             // 信任所有服务端证书（跳过校验）
-                         }
-
-                         override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                 trustManager = object : X509TrustManager {
+                     override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                         // 不校验客户端证书
                      }
+
+                     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                         // 信任所有服务端证书（跳过校验）
+                     }
+
+                     override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
                  }
              }
          }

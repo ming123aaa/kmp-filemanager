@@ -170,7 +170,6 @@ object JvmServerManager : ServerManager {
         } catch (_: Exception) {
         }
 
-
         server = null
         ftpServer = null
         webDavServer = null

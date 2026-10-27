@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -86,7 +87,6 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                 ) {
 
 
-
                     // 远端服务器
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -104,7 +104,6 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
 
 
                         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-
 
 
                             // 扫描绑定模式
@@ -169,7 +168,7 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                                                 isTesting = true
                                                 testResult = null
                                                 try {
-                                                    val result = withTimeout(3000.milliseconds){
+                                                    val result = withTimeout(3000.milliseconds) {
                                                         ApiService.testConnect(serverUrl)
                                                     }
                                                     testResult =
@@ -205,12 +204,15 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
 
+                    Spacer(modifier = Modifier.height(24.dp))
                     // 服务器管理
                     ServerManagementSection(
                         snackbarHostState = snackbarHostState
                     )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    // 剪贴板共享
+                    ClipboardSettingsSection(snackbarHostState)
 
                     Spacer(modifier = Modifier.height(24.dp))
                     HorizontalDivider()
@@ -261,7 +263,6 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
 
                     // 平台特有设置
                     PlatformSettingsSection(snackbarHostState)
-
 
                     // 关于
                     Text(
@@ -352,7 +353,7 @@ private fun ServerManagementSection(
             OutlinedTextField(
                 value = serverName,
                 onValueChange = { serverName = it },
-                label = {  Text("服务器名称") },
+                label = { Text("服务器名称") },
                 placeholder = { Text(getDefaultDeviceName()) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -415,7 +416,7 @@ private fun ServerManagementSection(
                             HttpConfig.saveServerReadOnly(serverReadOnly)
                             HttpConfig.saveServerUseHttps(serverUseHttps)
                             HttpConfig.saveDeviceName(serverName)
-                            serverName= HttpConfig.getDeviceName()
+                            serverName = HttpConfig.getDeviceName()
                             HttpConfig.saveFtpPort(ftpPortVal)
                             HttpConfig.saveFtpUser(ftpUser)
                             HttpConfig.saveFtpPassword(ftpPassword)
@@ -1092,17 +1093,43 @@ private fun DeviceScanSection(
     var isScanning by remember { mutableStateOf(false) }
     var scanError by remember { mutableStateOf<String?>(null) }
     var connectMsg by remember { mutableStateOf<String>("") }
+    var showAllDevices by remember { mutableStateOf(false) }
 
     // 已绑定设备
     if (boundDevices.isNotEmpty()) {
-        Text(
-            "已绑定设备",
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                "已绑定设备",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Row(modifier = Modifier.clickable {
+                showAllDevices = !showAllDevices
+            }) {
+                Icon(
+                    if (showAllDevices) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    if (showAllDevices) "隐藏设备" else "显示全部",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+            }
+        }
 
 
-        boundDevices.sortedBy { device ->
+
+        boundDevices.filter { device ->
+            val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
+            return@filter isActive || showAllDevices
+
+        }.sortedBy { device ->
             val isActive = currentMode == ConnectionMode.BOUND_DEVICE && currentBoundDeviceId == device.deviceId
             return@sortedBy !isActive
         }.forEach { device ->
@@ -1149,8 +1176,10 @@ private fun DeviceScanSection(
                         if (isActive) {
                             FilledTonalButton(
                                 onClick = onSwitchToManual,
-                                colors = ButtonDefaults.filledTonalButtonColors().copy(contentColor =
-                                    MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
+                                colors = ButtonDefaults.filledTonalButtonColors().copy(
+                                    contentColor =
+                                        MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                ),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                 modifier = Modifier.height(32.dp)
                             ) {
@@ -1246,7 +1275,6 @@ private fun DeviceScanSection(
     if (discoveredDevices.isNotEmpty()) {
 
 
-
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Icon(
@@ -1304,8 +1332,10 @@ private fun DeviceScanSection(
                         if (isActive) {
                             FilledTonalButton(
                                 onClick = onSwitchToManual,
-                                colors = ButtonDefaults.filledTonalButtonColors().copy(contentColor =
-                                    MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
+                                colors = ButtonDefaults.filledTonalButtonColors().copy(
+                                    contentColor =
+                                        MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                ),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                 modifier = Modifier.height(32.dp)
                             ) {

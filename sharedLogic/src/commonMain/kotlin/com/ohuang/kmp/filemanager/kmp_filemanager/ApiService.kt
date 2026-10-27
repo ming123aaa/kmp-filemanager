@@ -251,6 +251,56 @@ object ApiService {
             part.encodeURLComponent()
         }
     }
+
+    // ========== 剪贴板共享 API ==========
+
+    suspend fun pullClipboard(deviceId: String = "", deviceName: String = ""): String {
+        val response = client.get("${HttpConfig.getBaseUrl()}/clipboard/get") {
+            parameter("deviceId", deviceId)
+            parameter("deviceName", deviceName)
+        }
+        return response.bodyAsText()
+    }
+
+    suspend fun pushClipboard(text: String, deviceId: String = "", deviceName: String = ""): String {
+        val response = client.submitFormWithBinaryData(
+            url = "${HttpConfig.getBaseUrl()}/clipboard/report",
+            formData = formData {
+                append("text", text)
+                append("deviceId", deviceId)
+                append("deviceName", deviceName)
+            }
+        )
+        return response.bodyAsText()
+    }
+
+    suspend fun pullClipboardFrom(baseUrl: String, deviceId: String = ""): String {
+        val response = client.get("$baseUrl/clipboard/get") {
+            parameter("deviceId", deviceId)
+        }
+        return response.bodyAsText()
+    }
+
+    suspend fun pushClipboardTo(baseUrl: String, text: String, deviceId: String = "", deviceName: String = ""): String {
+        val response = client.submitFormWithBinaryData(
+            url = "$baseUrl/clipboard/report",
+            formData = formData {
+                append("text", text)
+                append("deviceId", deviceId)
+                append("deviceName", deviceName)
+            }
+        )
+        return response.bodyAsText()
+    }
+
+    suspend fun checkClipboardSupport(): Boolean {
+        return try {
+            val response = client.get("${HttpConfig.getBaseUrl()}/clipboard/support")
+            response.bodyAsText().trim().equals("true", ignoreCase = true)
+        } catch (_: Exception) {
+            false
+        }
+    }
 }
 
 data class FileInfo(

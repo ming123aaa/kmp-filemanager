@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardSyncManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.TextEditorNavData
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFileToLocalDir
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFilesToLocalDir
@@ -22,6 +23,7 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.UploadScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.VideoPlayerScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.theme.FileManagerTheme
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.utils.FragmentBox
+import io.ktor.client.HttpClient
 
 enum class Screen {
     FILE_MANAGER,
@@ -41,6 +43,10 @@ fun App(settings: Settings) {
         Surface(modifier = Modifier.fillMaxSize()) {
             FragmentBox {
 
+                // 应用启动时自动启用剪贴板同步
+                LaunchedEffect(Unit) {
+                    ClipboardSyncManager.start()
+                }
 
                 var textEditorData by remember { mutableStateOf<TextEditorNavData?>(null) }
                 var textEditorIsRemote by remember { mutableStateOf(true) }

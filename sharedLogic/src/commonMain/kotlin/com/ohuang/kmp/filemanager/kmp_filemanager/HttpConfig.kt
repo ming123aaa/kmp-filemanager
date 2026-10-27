@@ -385,4 +385,16 @@ object HttpConfig {
         val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
         return (1..12).map { chars[kotlin.random.Random.nextInt(chars.length)] }.joinToString("")
     }
+
+    // ========== 剪贴板同步设置 ==========
+
+    fun saveClipboardAutoSync(enabled: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("clipboard_auto_sync", enabled)
+    }
+
+    fun loadClipboardAutoSync(): Boolean {
+        val settings = _settings ?: return true
+        return settings.getBoolean("clipboard_auto_sync", true)
+    }
 }

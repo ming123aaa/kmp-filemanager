@@ -67,6 +67,22 @@ class LocalFileServer(private val config: ServerConfig) {
     /** 设备信息，可由外部设置，用于 /api/info 端点和设备发现 */
     var deviceInfo: DeviceInfo? = null
 
+    // ========== 剪贴板共享服务端状态 ==========
+    /** 共享的 JSON 序列化器 */
+    private val sharedJson = Json { ignoreUnknownKeys = true; prettyPrint = false }
+    /** 最后一次收到的剪贴板内容 */
+    @Volatile
+    private var clipboardText: String? = null
+    /** 最后一次更新的时间戳 */
+    @Volatile
+    private var clipboardTimestamp: Long = 0L
+    /** 最后一次推送的设备 ID */
+    @Volatile
+    private var clipboardSourceDeviceId: String? = null
+    /** 最后一次推送的设备名称 */
+    @Volatile
+    private var clipboardSourceDeviceName: String? = null
+
     fun createServer(): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
         File(config.rootPath).mkdirs()
         val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
@@ -106,10 +122,7 @@ class LocalFileServer(private val config: ServerConfig) {
             parentCoroutineContext = exceptionHandler,
             module = {
                 install(ContentNegotiation) {
-                    json(Json {
-                        ignoreUnknownKeys = true
-                        prettyPrint = false
-                    })
+                    json(sharedJson)
                 }
                 install(CORS) {
                     anyHost()
@@ -554,6 +567,64 @@ class LocalFileServer(private val config: ServerConfig) {
                                 else "attachment; filename=\"${file.name}\""
                             )
                             call.respondFile(file)
+                        }
+                    }
+
+                    // ========== 剪贴板共享 API ==========
+                    // GET: 检测服务端是否支持剪贴板共享
+                    get("/clipboard/support") {
+                        call.respondText("true", ContentType.Text.Plain)
+                    }
+
+                    // GET: 获取当前剪贴板内容（含时间戳）
+                    get("/clipboard/get") {
+                        val data = com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardData(
+                            text = clipboardText ?: "",
+                            timestamp = clipboardTimestamp,
+                            deviceId = clipboardSourceDeviceId ?: (deviceInfo?.deviceId ?: ""),
+                            deviceName = clipboardSourceDeviceName ?: (deviceInfo?.deviceName ?: "")
+                        )
+                        call.respondText(
+                            sharedJson.encodeToString(
+                                com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardData.serializer(),
+                                data
+                            ),
+                            ContentType.Text.Plain
+                        )
+                    }
+
+                    // GET: 仅检查是否有更新（只返回时间戳 + 设备名）
+                    get("/clipboard/check") {
+                        val data = com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardData(
+                            text = "",  // 不返回内容
+                            timestamp = clipboardTimestamp,
+                            deviceId = "",
+                            deviceName = clipboardSourceDeviceName ?: (deviceInfo?.deviceName ?: "")
+                        )
+                        call.respondText(
+                            sharedJson.encodeToString(
+                                com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardData.serializer(),
+                                data
+                            ),
+                            ContentType.Text.Plain
+                        )
+                    }
+
+                    // POST: 上报剪贴板内容
+                    post("/clipboard/report") {
+                        val params = call.receiveParameters()
+                        val text = params["text"] ?: ""
+                        val fromDeviceId = params["deviceId"] ?: ""
+                        val fromDeviceName = params["deviceName"] ?: ""
+
+                        if (text.isNotEmpty()) {
+                            clipboardText = text
+                            clipboardTimestamp = java.lang.System.currentTimeMillis()
+                            clipboardSourceDeviceId = fromDeviceId.ifEmpty { null }
+                            clipboardSourceDeviceName = fromDeviceName.ifEmpty { null }
+                            call.respondText("ok", ContentType.Text.Plain)
+                        } else {
+                            call.respondText("empty", ContentType.Text.Plain)
                         }
                     }
 
