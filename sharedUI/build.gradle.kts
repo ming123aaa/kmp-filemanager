@@ -30,7 +30,6 @@ kotlin {
             implementation(libs.mediaplayer.kmp)
         }
         jvmMain.dependencies {
-            implementation(libs.cmp.webview)
         }
         commonMain.dependencies {
             api(project(":sharedLogic"))

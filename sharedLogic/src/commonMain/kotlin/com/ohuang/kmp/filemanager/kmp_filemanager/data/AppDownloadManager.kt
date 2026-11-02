@@ -39,7 +39,7 @@ object AppDownloadManager {
     private val pendingChannel = Channel<Long>(Channel.UNLIMITED)
 
     /** 继续下载（断点续传） */
-    private val _isContinueDownload = MutableStateFlow(false)
+    private val _isContinueDownload = MutableStateFlow(true)
     val isContinueDownload: StateFlow<Boolean> = _isContinueDownload
 
     /** 下载间隔（毫秒） */
@@ -230,7 +230,7 @@ object AppDownloadManager {
         }
 
         var lastUpdateTime = 0L
-        val resumeFrom = if (_isContinueDownload.value && fileManager.fileExists(task.localFilePath)) {
+        val resumeFrom = if (_isContinueDownload.value && fileManager.fileExists(task.localFilePath)&&fileManager.fileLastModified(task.localFilePath)>=task.createTime) {
             fileManager.fileSize(task.localFilePath)
         } else {
             if (fileManager.fileExists(task.localFilePath)) {
@@ -345,7 +345,7 @@ object AppDownloadManager {
                 }
             }
 
-            val resumeFrom = if (_isContinueDownload.value && fileManager.fileExists(localPath)) {
+            val resumeFrom = if (_isContinueDownload.value && fileManager.fileExists(localPath)&&fileManager.fileLastModified(localPath)>=task.createTime) {
                 fileManager.fileSize(localPath)
             } else {
                 if (fileManager.fileExists(localPath)) fileManager.deleteFile(localPath)

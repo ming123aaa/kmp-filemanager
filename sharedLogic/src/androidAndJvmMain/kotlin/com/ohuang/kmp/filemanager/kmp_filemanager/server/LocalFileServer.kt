@@ -9,9 +9,11 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.getWebStaticResources
 import com.ohuang.kmp.filemanager.kmp_filemanager.isTypes
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.netty.Netty
 import io.ktor.server.netty.NettyApplicationEngine
 import io.ktor.server.engine.EmbeddedServer
@@ -28,6 +30,7 @@ import io.ktor.server.request.receiveParameters
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondFile
+import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -561,12 +564,20 @@ class LocalFileServer(private val config: ServerConfig) {
                             val contentType = contentTypeForFile(file.name)
                             val isInline = isInlineContentType(file.name)
                             call.response.header("Content-Type", contentType.toString())
+                            call.response.header("Accept-Ranges", "bytes")
                             call.response.headers.append(
                                 "Content-Disposition",
                                 if (isInline) "inline; filename=\"${file.name}\""
                                 else "attachment; filename=\"${file.name}\""
                             )
-                            call.respondFile(file)
+
+                            val rangeHeader = call.request.headers["Range"]
+                            if (rangeHeader != null) {
+                                respondRangeRequest(call, file, rangeHeader, contentType.toString())
+                            } else {
+                                call.response.header("Content-Length", file.length().toString())
+                                call.respondFile(file)
+                            }
                         }
                     }
 
@@ -661,6 +672,51 @@ class LocalFileServer(private val config: ServerConfig) {
 
     }
 
+    private suspend fun respondRangeRequest(
+        call: ApplicationCall,
+        file: File,
+        rangeHeader: String,
+        contentType: String
+    ) {
+        val fileLength = file.length()
+        val regex = Regex("bytes=(\\d*)-(\\d*)")
+        val match = regex.find(rangeHeader)
+
+        if (match == null) {
+            call.response.header("Content-Range", "bytes */$fileLength")
+            call.respond(HttpStatusCode.RequestedRangeNotSatisfiable)
+            return
+        }
+
+        val start = match.groupValues[1].takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+        val end = match.groupValues[2].takeIf { it.isNotEmpty() }?.toLongOrNull() ?: (fileLength - 1)
+
+        if (start >= fileLength || end >= fileLength || start > end) {
+            call.response.header("Content-Range", "bytes */$fileLength")
+            call.respond(HttpStatusCode.RequestedRangeNotSatisfiable)
+            return
+        }
+
+        val contentLength = end - start + 1
+        call.response.header("Content-Type", contentType)
+        call.response.header("Content-Range", "bytes $start-$end/$fileLength")
+        call.response.header("Content-Length", contentLength.toString())
+        call.respondOutputStream(status = HttpStatusCode.PartialContent) {
+            file.inputStream().use { input ->
+                input.skip(start)
+                val buffer = ByteArray(BUFFER_SIZE)
+                var remaining = contentLength
+                while (remaining > 0) {
+                    val toRead = minOf(buffer.size.toLong(), remaining).toInt()
+                    val read = input.read(buffer, 0, toRead)
+                    if (read == -1) break
+                    this.write(buffer, 0, read)
+                    remaining -= read
+                }
+            }
+        }
+    }
+
     fun stop() {
         stopDeviceDiscovery()
         coroutineScope.launch {
@@ -699,6 +755,8 @@ class LocalFileServer(private val config: ServerConfig) {
     }
 
     companion object {
+        private const val BUFFER_SIZE = 8192
+
         /**
          * 解码 URL 路径中的百分号编码（%XX），但不转换 + 为空格。
          * 与 URLDecoder.decode 的区别：后者会将 + 转为空格，导致文件名中的 + 号丢失。

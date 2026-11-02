@@ -48,6 +48,10 @@ import java.util.UUID
 import java.util.TimeZone
 
 class WebDavServer(private val config: ServerConfig) {
+    companion object {
+        private const val BUFFER_SIZE = 8192
+    }
+
     private var onThrowable: (Throwable) -> Unit = {}
     private val server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> by lazy {
         createServer()
@@ -166,7 +170,7 @@ class WebDavServer(private val config: ServerConfig) {
                 }
             }
 
-            // GET - download file
+            // GET - download file (supports Range/partial content)
             get {
                 if (!checkAuth(call)) return@get
 
@@ -185,12 +189,19 @@ class WebDavServer(private val config: ServerConfig) {
                     return@get
                 }
 
-                call.response.header("Content-Type", contentTypeForFile(file.name).toString())
-                call.response.header("Content-Length", file.length().toString())
-                call.response.header("ETag", computeEtag(file))
-                call.respondOutputStream {
-                    file.inputStream().use { input ->
-                        input.copyTo(this)
+                val contentType = contentTypeForFile(file.name).toString()
+                val etag = computeEtag(file)
+                call.response.header("Content-Type", contentType)
+                call.response.header("ETag", etag)
+                call.response.header("Accept-Ranges", "bytes")
+
+                val rangeHeader = call.request.requestHeader("Range")
+                if (rangeHeader != null) {
+                    respondRangeRequest(call, file, rangeHeader, contentType, etag)
+                } else {
+                    call.response.header("Content-Length", file.length().toString())
+                    call.respondOutputStream {
+                        file.inputStream().use { input -> input.copyTo(this) }
                     }
                 }
             }
@@ -741,6 +752,53 @@ class WebDavServer(private val config: ServerConfig) {
         return ContentType.parse(mime)
     }
 
+
+    private suspend fun respondRangeRequest(
+        call: ApplicationCall,
+        file: File,
+        rangeHeader: String,
+        contentType: String,
+        etag: String
+    ) {
+        val fileLength = file.length()
+        val regex = Regex("bytes=(\\d*)-(\\d*)")
+        val match = regex.find(rangeHeader)
+
+        if (match == null) {
+            call.response.header("Content-Range", "bytes */$fileLength")
+            call.respond(HttpStatusCode.RequestedRangeNotSatisfiable)
+            return
+        }
+
+        val start = match.groupValues[1].takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+        val end = match.groupValues[2].takeIf { it.isNotEmpty() }?.toLongOrNull() ?: (fileLength - 1)
+
+        if (start >= fileLength || end >= fileLength || start > end) {
+            call.response.header("Content-Range", "bytes */$fileLength")
+            call.respond(HttpStatusCode.RequestedRangeNotSatisfiable)
+            return
+        }
+
+        val contentLength = end - start + 1
+        call.response.header("Content-Type", contentType)
+        call.response.header("ETag", etag)
+        call.response.header("Content-Range", "bytes $start-$end/$fileLength")
+        call.response.header("Content-Length", contentLength.toString())
+        call.respondOutputStream(status = HttpStatusCode.PartialContent) {
+            file.inputStream().use { input ->
+                input.skip(start)
+                val buffer = ByteArray(BUFFER_SIZE)
+                var remaining = contentLength
+                while (remaining > 0) {
+                    val toRead = minOf(buffer.size.toLong(), remaining).toInt()
+                    val read = input.read(buffer, 0, toRead)
+                    if (read == -1) break
+                    this.write(buffer, 0, read)
+                    remaining -= read
+                }
+            }
+        }
+    }
 
     fun stop() {
         coroutineScope.launch {
