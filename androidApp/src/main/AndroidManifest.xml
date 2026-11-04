@@ -21,6 +21,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- 剪贴板后台监听所需权限 -->
+    <!-- 悬浮窗权限：用于创建透明窗口短暂获取焦点以读取剪贴板 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 无障碍服务绑定权限 -->
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+
+    <!-- pm grant 授权 write secure settings,  通过adb授予该权限，以便无障碍服务可以自动开启 -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+
     <application
             android:name=".ApplicationImpl"
             android:allowBackup="true"
@@ -70,6 +79,19 @@
 
                 android:configChanges="screenLayout|screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+
+        <!-- 剪贴板无障碍服务：监听文本选择、点击等事件，配合悬浮窗读取剪贴板 -->
+        <service
+                android:name=".service.ClipboardAccessibilityService"
+                android:exported="true"
+                android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                    android:name="android.accessibilityservice"
+                    android:resource="@xml/accessibility_service_config" />
+        </service>
     </application>
 
 </manifest>

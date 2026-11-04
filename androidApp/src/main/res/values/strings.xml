@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">FileManager</string>
+    <string name="accessibility_service_description">
+        FileManager 后台剪贴板监听服务。
+        监听文本选择和复制操作，在系统允许的情况下配合悬浮窗读取剪贴板内容。
+        不收集任何个人信息，仅用于应用内文件传输功能。
+    </string>
 </resources>

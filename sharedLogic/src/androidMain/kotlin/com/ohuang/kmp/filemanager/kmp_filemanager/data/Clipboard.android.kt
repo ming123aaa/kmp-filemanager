@@ -59,6 +59,19 @@ fun notifyForeground() {
     }
 }
 
+/**
+ * 由 [ClipboardOverlayReader] 在后台通过悬浮窗成功读取剪贴板后调用。
+ * 直接比对 lastKnownText 并在变化时触发所有 [ClipboardChangeListener]。
+ */
+fun notifyClipboardReadFromOverlay(text: String?) {
+    mainHandler.post {
+        if (text != lastKnownText) {
+            lastKnownText = text
+            listeners.toList().forEach { it.onClipboardChanged(text) }
+        }
+    }
+}
+
 actual fun addClipboardChangeListener(listener: ClipboardChangeListener) {
     listeners.add(listener)
     if (!isListenerRegistered) {

@@ -2,12 +2,28 @@ package com.ohuang.kmp.filemanager.kmp_filemanager
 
 import android.app.Activity
 import android.app.Application
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.ClipboardA11yCallback
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.ClipboardOverlayReader
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.notifyClipboardReadFromOverlay
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.tryAutoEnableAccessibilityService
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.ServerConfig
 import com.ohuang.kmp.filemanager.kmp_filemanager.server.getServerManager
+import com.ohuang.kmp.filemanager.kmp_filemanager.service.ClipboardAccessibilityService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 
 
 class ApplicationImpl : Application() {
+
+
+    companion object {
+
+        var appResume:Boolean = false
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -16,10 +32,37 @@ class ApplicationImpl : Application() {
         HttpConfig.init(Settings(this))
         startServer()
 
+        // 尝试自动开启无障碍服务（需 WRITE_SECURE_SETTINGS 已通过 adb 授权）
+        tryAutoEnableAccessibilityService()
+
+        // 无障碍服务 → 悬浮窗读取器 → 剪贴板监听器的联动
+        setupClipboardAccessibilityBridge()
+
+    }
+
+    /**
+     * 建立无障碍服务与悬浮窗读取器的桥梁：
+     * 无障碍服务检测到疑似复制 → 悬浮窗瞬获焦点读取剪贴板 → 通知剪贴板变化监听器
+     */
+    private fun setupClipboardAccessibilityBridge() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+            ClipboardAccessibilityService.onPossibleCopyDetected = ClipboardA11yCallback {
+                ClipboardOverlayReader.readClipboardOnce { text ->
+                    if (text != null) {
+                        notifyClipboardReadFromOverlay(text)
+                    }
+                }
+
+            }
+        }
+
     }
 
     private fun registerActivityListner() {
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            var resumeActivity = mutableSetOf<Activity>()
+
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
 
             }
@@ -34,7 +77,11 @@ class ApplicationImpl : Application() {
 
             override fun onActivityResumed(activity: Activity) {
                 // 回到前台时主动检测剪贴板变化
+                resumeActivity.add(activity)
+                appResume= resumeActivity.isNotEmpty()
                 com.ohuang.kmp.filemanager.kmp_filemanager.data.notifyForeground()
+
+
             }
 
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {
@@ -46,7 +93,8 @@ class ApplicationImpl : Application() {
             }
 
             override fun onActivityStopped(activity: Activity) {
-
+                resumeActivity.remove(activity)
+                appResume= resumeActivity.isNotEmpty()
             }
         })
     }

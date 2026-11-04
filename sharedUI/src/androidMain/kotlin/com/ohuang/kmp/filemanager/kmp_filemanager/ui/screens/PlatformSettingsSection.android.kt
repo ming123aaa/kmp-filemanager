@@ -12,15 +12,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsPower
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
@@ -39,8 +44,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.calculateCacheSize
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.canDrawOverlays
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.clearCache
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.copyToClipboard
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.getEnableAccessibilityAdbCommand
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.isClipboardAccessibilityEnabled
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.launchPowerSavingMode
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.openAccessibilitySettingsPage
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.openOverlayPermissionSettings
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.requestIgnoreBatteryOptimization
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -78,6 +89,136 @@ actual fun PlatformSettingsSection(snackbarHostState: SnackbarHostState) {
                 subtitle = "降低功耗，适合长时间运行",
                 onClick = { launchPowerSavingMode() }
             )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    // ── 剪贴板权限 ──
+    SectionTitle("剪贴板权限")
+    var overlayGranted by remember { mutableStateOf(canDrawOverlays()) }
+    var a11yEnabled by remember { mutableStateOf(isClipboardAccessibilityEnabled()) }
+    val adbCommand = remember { getEnableAccessibilityAdbCommand() }
+
+    // 刷新状态
+    LaunchedEffect(Unit) {
+        overlayGranted = canDrawOverlays()
+        a11yEnabled = isClipboardAccessibilityEnabled()
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // 状态摘要
+            val allGranted = overlayGranted && a11yEnabled
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (allGranted)
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                else
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (allGranted) Icons.Default.Check else Icons.Default.Info,
+                        contentDescription = null,
+                        tint = if (allGranted) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (allGranted) "剪贴板权限已就绪" else "剪贴板权限未完整",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (allGranted) "悬浮窗 ✓ | 无障碍 ✓"
+                            else buildString {
+                                if (!overlayGranted) append("悬浮窗 ✗ ")
+                                if (!a11yEnabled) append("无障碍 ✗")
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 悬浮窗权限
+            SettingsItem(
+                icon = Icons.Default.SettingsPower,
+                title = "悬浮窗权限",
+                subtitle = if (overlayGranted) "已授权" else "未授权 — 点击去设置",
+                onClick = {
+                    if (!overlayGranted) openOverlayPermissionSettings()
+                }
+            )
+
+            // 无障碍服务
+            SettingsItem(
+                icon = Icons.Default.Settings,
+                title = "无障碍服务",
+                subtitle = if (a11yEnabled) "已开启" else "未开启 — 点击去开启",
+                onClick = {
+                    if (!a11yEnabled) openAccessibilitySettingsPage()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ADB 命令
+            Text(
+                text = "一键授权并开启无障碍（ADB）",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = adbCommand,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 5
+                    )
+                    IconButton(
+                        onClick = {
+                            copyToClipboard(adbCommand)
+                            scope.launch {
+                                snackbarHostState.showSnackbar("ADB 命令已复制到剪贴板")
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "复制命令",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 

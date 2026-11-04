@@ -51,7 +51,7 @@ object ClipboardSyncManager {
     private val pollIntervalMs: Long = 1000L          // 轮询间隔 1.5 秒
 
     // ========== 运行标记 ==========
-    private val isAutoSyncEnabled: Boolean
+     val isAutoSyncEnabled: Boolean
         get() {
             return HttpConfig.loadClipboardAutoSync()
         }
