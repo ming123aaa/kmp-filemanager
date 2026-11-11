@@ -4,12 +4,34 @@ import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.FlavorListener
 import java.awt.datatransfer.StringSelection
+import java.awt.datatransfer.Transferable
 import java.awt.datatransfer.UnsupportedFlavorException
+import java.io.File
 import java.io.IOException
 
 actual fun copyToClipboard(text: String) {
     val clipboard = Toolkit.getDefaultToolkit().systemClipboard
     clipboard.setContents(StringSelection(text), null)
+}
+
+actual fun copyFileToClipboard(filePath: String): Boolean {
+    return try {
+        val file = File(filePath)
+        if (!file.exists()) return false
+        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+        val fileList = listOf(file)
+        clipboard.setContents(object : Transferable {
+            override fun getTransferDataFlavors(): Array<DataFlavor> = arrayOf(DataFlavor.javaFileListFlavor)
+            override fun isDataFlavorSupported(flavor: DataFlavor): Boolean = DataFlavor.javaFileListFlavor == flavor
+            override fun getTransferData(flavor: DataFlavor): Any {
+                if (DataFlavor.javaFileListFlavor == flavor) return fileList
+                throw UnsupportedFlavorException(flavor)
+            }
+        }, null)
+        true
+    } catch (_: Exception) {
+        false
+    }
 }
 
 actual fun getClipboardText(): String? {

@@ -1,4 +1,4 @@
-﻿package com.ohuang.kmp.filemanager.kmp_filemanager.server
+package com.ohuang.kmp.filemanager.kmp_filemanager.server
 
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
@@ -189,7 +189,7 @@ class WebDavServer(private val config: ServerConfig) {
                     return@get
                 }
 
-                val contentType = contentTypeForFile(file.name).toString()
+                val contentType = contentTypeWithCharset(contentTypeForFile(file.name).toString())
                 val etag = computeEtag(file)
                 call.response.header("Content-Type", contentType)
                 call.response.header("ETag", etag)
@@ -222,7 +222,7 @@ class WebDavServer(private val config: ServerConfig) {
                     call.response.header("Content-Type", "text/html; charset=utf-8")
                     call.response.header("Content-Length", "0")
                 } else {
-                    call.response.header("Content-Type", contentTypeForFile(file.name).toString())
+                    call.response.header("Content-Type", contentTypeWithCharset(contentTypeForFile(file.name).toString()))
                     call.response.header("Content-Length", file.length().toString())
                     call.response.header("ETag", computeEtag(file))
                 }
@@ -750,6 +750,18 @@ class WebDavServer(private val config: ServerConfig) {
             else -> "application/octet-stream"
         }
         return ContentType.parse(mime)
+    }
+
+    /**
+     * 文本类 MIME 追加 charset=utf-8，避免浏览器显示中文乱码。
+     */
+    private fun contentTypeWithCharset(mime: String): String {
+        val textTypes = setOf(
+            "text/plain", "text/html", "text/css", "text/csv", "text/markdown",
+            "text/xml", "application/xml", "application/json",
+            "application/javascript", "application/typescript"
+        )
+        return if (mime in textTypes) "$mime; charset=utf-8" else mime
     }
 
 

@@ -39,7 +39,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
+fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null, goClipboardHistory: () -> Unit = {}) {
     var serverUrl by remember { mutableStateOf(HttpConfig.getBaseUrl()) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
@@ -212,7 +212,7 @@ fun SettingsScreen(onBack: () -> Unit, settings: Settings? = null) {
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     // 剪贴板共享
-                    ClipboardSettingsSection(snackbarHostState)
+                    ClipboardSettingsSection(snackbarHostState, goClipboardHistory)
 
                     Spacer(modifier = Modifier.height(24.dp))
                     HorizontalDivider()

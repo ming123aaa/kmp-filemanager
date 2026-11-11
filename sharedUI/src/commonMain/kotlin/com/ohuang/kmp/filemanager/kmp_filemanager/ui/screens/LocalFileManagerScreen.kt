@@ -18,6 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ohuang.kmp.filemanager.kmp_filemanager.Settings
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.TextEditorNavData
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.ViewMode
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.copyFileToClipboard
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.copyToClipboard
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.openLocalFile
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.components.*
@@ -84,7 +85,11 @@ fun LocalFileManagerScreen(
     val showBatchMoveDialog by viewModel.showBatchMoveDialog.collectAsState()
     val showBatchExportDialog by viewModel.showBatchExportDialog.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -219,6 +224,14 @@ fun LocalFileManagerScreen(
                         onMove = { file -> viewModel.showMoveDialog(file) },
                         onCopyLink = { file ->
                             copyToClipboard(viewModel.getFullPath(file))
+                        },
+                        onCopyFile = { file ->
+                            val success = copyFileToClipboard(viewModel.getFullPath(file))
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (success) "已复制: ${file.name}" else "复制失败"
+                                )
+                            }
                         },
                         onOpenInNew = { file ->
                             openLocalFile(viewModel.getFullPath(file))

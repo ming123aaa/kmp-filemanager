@@ -47,6 +47,7 @@ fun FileCard(
     onMove: (FileItem) -> Unit = {},
     onDelete: (FileItem) -> Unit = {},
     onCopyLink: (FileItem) -> Unit = {},
+    onCopyFile: (FileItem) -> Unit = {},
     onOpenInNew: (FileItem) -> Unit = {}
 ) {
     Box {
@@ -208,6 +209,13 @@ fun FileCard(
                         leadingIcon = {
                             Icon(if (isLocalFile) Icons.Default.Output else Icons.Default.Download, contentDescription = null)
                         }
+                    )
+                }
+                if (isLocalFile) {
+                    DropdownMenuItem(
+                        text = { Text("复制文件") },
+                        onClick = { onCopyFile(file) },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
                     )
                 }
                 DropdownMenuItem(

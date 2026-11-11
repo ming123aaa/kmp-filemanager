@@ -23,6 +23,7 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.HttpConfig
 import com.ohuang.kmp.filemanager.kmp_filemanager.PlatformType
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.AppDownloadManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.DownloadTask
+import com.ohuang.kmp.filemanager.kmp_filemanager.data.copyFileToClipboard
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.openLocalFile
 import com.ohuang.kmp.filemanager.kmp_filemanager.getPlatform
 import kotlinx.coroutines.launch
@@ -45,6 +46,9 @@ fun DownloadScreen(onBack: () -> Unit, onOpenLocalFileManager: (String) -> Unit 
     val downloadInterval by AppDownloadManager.downloadInterval.collectAsState()
     val overwriteFile by AppDownloadManager.overwriteFile.collectAsState()
     val folderFairContinue by AppDownloadManager.folderFairContinue.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     var selectedFilter by remember { mutableStateOf(DownloadFilter.ALL) }
     var showNewDownloadDialog by remember { mutableStateOf(false) }
@@ -86,6 +90,7 @@ fun DownloadScreen(onBack: () -> Unit, onOpenLocalFileManager: (String) -> Unit 
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -263,6 +268,14 @@ fun DownloadScreen(onBack: () -> Unit, onOpenLocalFileManager: (String) -> Unit 
                             onRemove = { AppDownloadManager.removeTask(task.id) },
                             onOpenFolder = {
                                 openLocalFile(task.localFilePath)
+                            },
+                            onCopy = {
+                                val success = copyFileToClipboard(task.localFilePath)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (success) "已复制: ${task.fileName}" else "复制失败"
+                                    )
+                                }
                             }
                         )
                     }
@@ -389,7 +402,8 @@ private fun DownloadTaskItem(
     onResume: () -> Unit,
     onRetry: () -> Unit,
     onRemove: () -> Unit,
-    onOpenFolder: () -> Unit = {}
+    onOpenFolder: () -> Unit = {},
+    onCopy: () -> Unit = {}
 ) {
     val isCompleted = task.status == DownloadTask.Status.COMPLETED
     Card(
@@ -509,6 +523,9 @@ private fun DownloadTaskItem(
                                 }
                             }
                             DownloadTask.Status.COMPLETED -> {
+                                IconButton(onClick = onCopy, modifier = Modifier.size(36.dp)) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "复制文件", modifier = Modifier.size(22.dp))
+                                }
                                 IconButton(onClick = onOpenFolder, modifier = Modifier.size(36.dp)) {
                                     Icon(Icons.Default.OpenInNew, contentDescription = "打开文件", modifier = Modifier.size(22.dp))
                                 }

@@ -50,6 +50,18 @@ object ClipboardSyncManager {
     private val minSyncIntervalMs: Long = 200L      // 最小同步间隔 1 秒
     private val pollIntervalMs: Long = 1000L          // 轮询间隔 1.5 秒
 
+    /** 跳过下一次剪贴板变化（从历史记录恢复时使用） */
+    @Volatile
+    private var suppressNextChange: Boolean = false
+
+    /**
+     * 下一次剪贴板变化将被忽略（不记录历史、不推送到远端）。
+     * 在程序化调用 [copyToClipboard] 之前调用，防止回环。
+     */
+    fun skipNextChange() {
+        suppressNextChange = true
+    }
+
     // ========== 运行标记 ==========
      val isAutoSyncEnabled: Boolean
         get() {
@@ -72,6 +84,11 @@ object ClipboardSyncManager {
     // ========== 剪贴板变化监听器 ==========
     private val clipboardChangeListener = object : ClipboardChangeListener {
         override fun onClipboardChanged(text: String?) {
+            // 程序化复制（如从历史记录恢复）跳过同步
+            if (suppressNextChange) {
+                suppressNextChange = false
+                return
+            }
             if (!isAutoSyncEnabled || !isRunning) return
             if (text.isNullOrBlank()) return
 
@@ -87,6 +104,8 @@ object ClipboardSyncManager {
             lastSentText = text
             _currentText.value = text
             lastReceivedTimestamp=lastSyncTimeMs
+            // 记录到历史
+            ClipboardHistoryManager.addItem(text, ClipSource.LOCAL, "本机")
             scope.launch {
                 pushToRemote(text)       // HTTP POST 到远端
 //                pushToLocalServer(text)  // HTTP POST 到本地服务（广播给连我的客户端）
@@ -215,6 +234,8 @@ object ClipboardSyncManager {
         if (_currentText.value == text) return
         _currentText.value = text
         copyToClipboard(text)
+        // 记录到历史
+        ClipboardHistoryManager.addItem(text, ClipSource.REMOTE, data.deviceName.ifEmpty { "远端" })
         _syncEvents.value = ClipboardSyncEvent(
             state = ClipboardSyncState.SYNCED,
             text = text,

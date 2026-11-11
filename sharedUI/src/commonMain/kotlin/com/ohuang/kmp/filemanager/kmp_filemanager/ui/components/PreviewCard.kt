@@ -50,6 +50,7 @@ fun PreviewCard(
     onMove: (FileItem) -> Unit = {},
     onDelete: (FileItem) -> Unit = {},
     onCopyLink: (FileItem) -> Unit = {},
+    onCopyFile: (FileItem) -> Unit = {},
     onOpenInNew: (FileItem) -> Unit = {}
 ) {
     val fileType = if (file.isFolder) FileType.FOLDER else FileType.getFileType(file.name)
@@ -268,6 +269,13 @@ fun PreviewCard(
                         text = { Text(if (isLocalFile) "导出" else "下载") },
                         onClick = { onDownload(file) },
                         leadingIcon = { Icon(if (isLocalFile) Icons.Default.Output else Icons.Default.Download, contentDescription = null) }
+                    )
+                }
+                if (isLocalFile) {
+                    DropdownMenuItem(
+                        text = { Text("复制文件") },
+                        onClick = { onCopyFile(file) },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
                     )
                 }
                 DropdownMenuItem(

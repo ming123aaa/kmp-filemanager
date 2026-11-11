@@ -2,6 +2,12 @@ package com.ohuang.kmp.filemanager.kmp_filemanager.data
 
 expect fun copyToClipboard(text: String)
 
+/**
+ * 将文件复制到系统剪贴板，使得用户可以在文件管理器等处粘贴该文件。
+ * @return true 表示复制成功，false 表示失败（如文件不存在）。
+ */
+expect fun copyFileToClipboard(filePath: String): Boolean
+
 expect fun getClipboardText(): String?
 
 /**

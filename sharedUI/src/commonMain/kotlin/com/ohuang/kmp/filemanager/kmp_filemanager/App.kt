@@ -6,12 +6,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardSyncManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.TextEditorNavData
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFileToLocalDir
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.exportFilesToLocalDir
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.importFilesToLocalDir
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.pickExportFolder
+import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.ClipboardHistoryScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.DownloadScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.FileManagerScreen
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.screens.LocalFileManagerScreen
@@ -33,7 +35,8 @@ enum class Screen {
     TEXT_EDITOR,
     MEDIA_PREVIEW,
     VIDEO_PLAYER,
-    LOCAL_FILE_MANAGER
+    LOCAL_FILE_MANAGER,
+    CLIPBOARD_HISTORY
 }
 
 @Composable
@@ -43,8 +46,9 @@ fun App(settings: Settings) {
         Surface(modifier = Modifier.fillMaxSize()) {
             FragmentBox {
 
-                // 应用启动时自动启用剪贴板同步
+                // 应用启动时初始化剪贴板历史并自动启用剪贴板同步
                 LaunchedEffect(Unit) {
+                    ClipboardHistoryManager.init()
                     ClipboardSyncManager.start()
                 }
 
@@ -130,7 +134,10 @@ fun App(settings: Settings) {
                     }
 
                     Screen.SETTINGS -> {
-                        SettingsScreen(onBack = { goBack() })
+                        SettingsScreen(
+                            onBack = { goBack() },
+                            goClipboardHistory = { navigateTo(Screen.CLIPBOARD_HISTORY) }
+                        )
                     }
 
                     Screen.DOWNLOADS -> {
@@ -193,6 +200,10 @@ fun App(settings: Settings) {
                                 onClose = { goBack() }
                             )
                         }
+                    }
+
+                    Screen.CLIPBOARD_HISTORY -> {
+                        ClipboardHistoryScreen(onBack = { goBack() })
                     }
 
                     Screen.LOCAL_FILE_MANAGER -> {

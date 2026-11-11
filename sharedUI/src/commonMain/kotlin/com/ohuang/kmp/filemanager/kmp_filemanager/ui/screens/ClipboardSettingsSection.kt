@@ -23,9 +23,12 @@ import kotlinx.coroutines.launch
  * 面板可见时自动启用同步
  */
 @Composable
-fun ClipboardSettingsSection(snackbarHostState: SnackbarHostState) {
+fun ClipboardSettingsSection(
+    snackbarHostState: SnackbarHostState,
+    goClipboardHistory: () -> Unit = {}
+) {
     val scope = rememberCoroutineScope()
-    ClipboardSyncPanel(snackbarHostState, scope)
+    ClipboardSyncPanel(snackbarHostState, scope, goClipboardHistory)
 }
 
 // ==================== 面板 ====================
@@ -33,7 +36,8 @@ fun ClipboardSettingsSection(snackbarHostState: SnackbarHostState) {
 @Composable
 private fun ClipboardSyncPanel(
     snackbarHostState: SnackbarHostState,
-    scope: kotlinx.coroutines.CoroutineScope
+    scope: kotlinx.coroutines.CoroutineScope,
+    goClipboardHistory: () -> Unit = {}
 ) {
     var clipboardAutoSync by remember { mutableStateOf(HttpConfig.loadClipboardAutoSync()) }
 
@@ -82,6 +86,18 @@ private fun ClipboardSyncPanel(
 
             HorizontalDivider()
             CurrentClipboardPreview(currentText)
+            HorizontalDivider()
+
+            // 查看历史记录
+            OutlinedButton(
+                onClick = goClipboardHistory,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("查看剪贴板历史记录")
+            }
+
             HorizontalDivider()
 
             ManualSyncButtons(

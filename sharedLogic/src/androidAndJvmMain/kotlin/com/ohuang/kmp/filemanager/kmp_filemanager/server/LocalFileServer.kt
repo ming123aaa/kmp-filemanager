@@ -51,6 +51,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URI
+import java.net.URLEncoder
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
@@ -563,17 +564,19 @@ class LocalFileServer(private val config: ServerConfig) {
                             }
                             val contentType = contentTypeForFile(file.name)
                             val isInline = isInlineContentType(file.name)
-                            call.response.header("Content-Type", contentType.toString())
+                            call.response.header(
+                                "Content-Type",
+                                contentTypeWithCharset(contentType.toString())
+                            )
                             call.response.header("Accept-Ranges", "bytes")
                             call.response.headers.append(
                                 "Content-Disposition",
-                                if (isInline) "inline; filename=\"${file.name}\""
-                                else "attachment; filename=\"${file.name}\""
+                                buildContentDisposition(file.name, isInline)
                             )
 
                             val rangeHeader = call.request.headers["Range"]
                             if (rangeHeader != null) {
-                                respondRangeRequest(call, file, rangeHeader, contentType.toString())
+                                respondRangeRequest(call, file, rangeHeader, contentTypeWithCharset(contentType.toString()))
                             } else {
                                 call.response.header("Content-Length", file.length().toString())
                                 call.respondFile(file)
@@ -866,6 +869,35 @@ class LocalFileServer(private val config: ServerConfig) {
         private fun isInlineContentType(fileName: String): Boolean {
             val ext = fileName.substringAfterLast('.', "").lowercase()
             return ext in INLINE_EXTENSIONS
+        }
+
+        /**
+         * 构建符合 RFC 5987 的 Content-Disposition 头。
+         * 中文等非 ASCII 文件名通过 filename*=UTF-8''... 编码，
+         * 同时提供 ASCII 回退名兼容旧浏览器。
+         */
+        private fun buildContentDisposition(fileName: String, inline: Boolean): String {
+            val disposition = if (inline) "inline" else "attachment"
+            // RFC 5987: charset'language'percent-encoded-value
+            val encoded = URLEncoder.encode(fileName, "UTF-8")
+                .replace("+", "%20")
+            // ASCII fallback: 移除所有非 ASCII 字符
+            val asciiFallback = fileName
+                .replace(Regex("[^\\x00-\\x7F]"), "")
+                .takeIf { it.isNotBlank() } ?: "download"
+            return "$disposition; filename=\"$asciiFallback\"; filename*=UTF-8''$encoded"
+        }
+
+        /**
+         * 文本类 MIME 追加 charset=utf-8，避免浏览器显示中文乱码。
+         */
+        private fun contentTypeWithCharset(mime: String): String {
+            val textTypes = setOf(
+                "text/plain", "text/html", "text/css", "text/csv", "text/markdown",
+                "text/xml", "application/xml", "application/json",
+                "application/javascript", "application/typescript"
+            )
+            return if (mime in textTypes) "$mime; charset=utf-8" else mime
         }
     }
 }

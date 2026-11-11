@@ -3,10 +3,13 @@ package com.ohuang.kmp.filemanager.kmp_filemanager.data
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.core.content.FileProvider
 import com.ohuang.kmp.filemanager.kmp_filemanager.ActivityContext
+import java.io.File
 
 
 actual fun copyToClipboard(text: String) {
@@ -14,6 +17,32 @@ actual fun copyToClipboard(text: String) {
     val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText("clipboard_sync", text)
     clipboard.setPrimaryClip(clip)
+}
+
+actual fun copyFileToClipboard(filePath: String): Boolean {
+    return try {
+        val ctx = ActivityContext.get() ?: return false
+        val file = File(filePath)
+        val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+        // 优先通过 FileProvider 生成 content:// URI（Android 7+ 禁止暴露 file://）
+        val uri: Uri? = try {
+            FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+        } catch (_: Exception) {
+            null
+        }
+
+        if (uri != null) {
+            val clip = ClipData.newUri(ctx.contentResolver, "file", uri)
+            clipboard.setPrimaryClip(clip)
+        } else {
+            // FileProvider 不覆盖该路径，回退为复制文件路径纯文本
+            clipboard.setPrimaryClip(ClipData.newPlainText("file_path", filePath))
+        }
+        true
+    } catch (_: Exception) {
+        false
+    }
 }
 
 actual fun getClipboardText(): String? {
