@@ -30,7 +30,9 @@ class ApplicationImpl : Application() {
         registerActivityListner()
         AppContext.init(this)
         HttpConfig.init(Settings(this))
-        startServer()
+        if (HttpConfig.loadServerAutoStart()) {
+            startServer()
+        }
 
         // 尝试自动开启无障碍服务（需 WRITE_SECURE_SETTINGS 已通过 adb 授权）
         tryAutoEnableAccessibilityService()

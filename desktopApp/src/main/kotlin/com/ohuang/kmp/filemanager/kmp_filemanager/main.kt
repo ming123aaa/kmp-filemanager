@@ -59,28 +59,30 @@ fun main() {
             val savedWebDavUseHttps = HttpConfig.loadWebDavUseHttps()
             val savedServerUseHttps = HttpConfig.loadServerUseHttps()
             val serverManager = getServerManager()
-            serverManager.start(
-                ServerConfig(
-                    port = savedPort,
-                    rootPath = savedRootPath.ifEmpty { getDefaultServerRootPath() },
-                    useHttps = savedServerUseHttps,
-                    ftpPort = savedFtpPort,
-                    ftpUser = savedFtpUser,
-                    ftpPassword = savedFtpPassword,
-                    ftpEnabled = savedFtpEnabled,
-                    ftpAnonymous = savedFtpAnonymous,
-                    webDavPort = savedWebDavPort,
-                    webDavUser = savedWebDavUser,
-                    webDavPassword = savedWebDavPassword,
-                    webDavEnabled = savedWebDavEnabled,
-                    webDavAnonymous = savedWebDavAnonymous,
-                    webDavUseHttps = savedWebDavUseHttps,
-                    keystorePath = HttpConfig.loadKeystorePath(),
-                    keystorePassword = HttpConfig.loadKeystorePassword(),
-                    keyAlias = HttpConfig.loadKeyAlias(),
-                    keyPassword = HttpConfig.loadKeyPassword()
+            if (HttpConfig.loadServerAutoStart()) {
+                serverManager.start(
+                    ServerConfig(
+                        port = savedPort,
+                        rootPath = savedRootPath.ifEmpty { getDefaultServerRootPath() },
+                        useHttps = savedServerUseHttps,
+                        ftpPort = savedFtpPort,
+                        ftpUser = savedFtpUser,
+                        ftpPassword = savedFtpPassword,
+                        ftpEnabled = savedFtpEnabled,
+                        ftpAnonymous = savedFtpAnonymous,
+                        webDavPort = savedWebDavPort,
+                        webDavUser = savedWebDavUser,
+                        webDavPassword = savedWebDavPassword,
+                        webDavEnabled = savedWebDavEnabled,
+                        webDavAnonymous = savedWebDavAnonymous,
+                        webDavUseHttps = savedWebDavUseHttps,
+                        keystorePath = HttpConfig.loadKeystorePath(),
+                        keystorePassword = HttpConfig.loadKeystorePassword(),
+                        keyAlias = HttpConfig.loadKeyAlias(),
+                        keyPassword = HttpConfig.loadKeyPassword()
+                    )
                 )
-            )
+            }
 
             var showExitDialog by mutableStateOf(false)
 

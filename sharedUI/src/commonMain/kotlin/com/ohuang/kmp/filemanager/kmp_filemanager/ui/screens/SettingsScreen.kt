@@ -339,6 +339,7 @@ private fun ServerManagementSection(
     var keystorePassword by remember { mutableStateOf(HttpConfig.loadKeystorePassword()) }
     var keyAlias by remember { mutableStateOf(HttpConfig.loadKeyAlias()) }
     var keyPassword by remember { mutableStateOf(HttpConfig.loadKeyPassword()) }
+    var serverAutoStart by remember { mutableStateOf(HttpConfig.loadServerAutoStart()) }
     var advancedExpanded by remember { mutableStateOf(false) }
     var usageDialogType by remember { mutableStateOf<String?>(null) }
 
@@ -366,6 +367,30 @@ private fun ServerManagementSection(
                     }
                 }
             )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 自启开关
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("开机自启", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        if (serverAutoStart) "打开应用后自动启动服务" else "需手动启动服务",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = serverAutoStart,
+                    onCheckedChange = {
+                        serverAutoStart = it
+                        HttpConfig.saveServerAutoStart(it)
+                    }
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             // 启停按钮
@@ -1094,6 +1119,7 @@ private fun DeviceScanSection(
     var scanError by remember { mutableStateOf<String?>(null) }
     var connectMsg by remember { mutableStateOf<String>("") }
     var showAllDevices by remember { mutableStateOf(false) }
+    var showAllDiscovered by remember { mutableStateOf(false) }
 
     // 已绑定设备
     if (boundDevices.isNotEmpty()) {
@@ -1273,7 +1299,12 @@ private fun DeviceScanSection(
 
     // 扫描结果
     if (discoveredDevices.isNotEmpty()) {
-
+        val needCollapse = discoveredDevices.size > 3
+        val displayDevices = if (needCollapse && !showAllDiscovered) {
+            discoveredDevices.take(3)
+        } else {
+            discoveredDevices
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -1293,7 +1324,7 @@ private fun DeviceScanSection(
         Spacer(modifier = Modifier.height(6.dp))
 
 
-        discoveredDevices.forEach { device ->
+        displayDevices.forEach { device ->
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                 shape = MaterialTheme.shapes.medium
@@ -1378,6 +1409,30 @@ private fun DeviceScanSection(
                         }
                     }
                 }
+            }
+        }
+
+        // 超过3台设备时显示展开/收起按钮
+        if (needCollapse) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable {
+                    showAllDiscovered = !showAllDiscovered
+                },
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    if (showAllDiscovered) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    if (showAllDiscovered) "收起" else "展开全部 (${discoveredDevices.size})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
 

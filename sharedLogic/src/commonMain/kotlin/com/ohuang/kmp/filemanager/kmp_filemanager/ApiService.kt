@@ -2,6 +2,7 @@ package com.ohuang.kmp.filemanager.kmp_filemanager
 
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.FileItem
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.uploadFileImpl
+import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryItem
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.onDownload
@@ -299,6 +300,47 @@ object ApiService {
             response.bodyAsText().trim().equals("true", ignoreCase = true)
         } catch (_: Exception) {
             false
+        }
+    }
+
+    // ========== 服务端剪贴板历史 API ==========
+
+    /** 从服务端获取剪贴板历史记录列表 */
+    suspend fun fetchServerClipboardHistory(): List<ClipboardHistoryItem> {
+        return try {
+            val response = client.get("${HttpConfig.getBaseUrl()}/clipboard/history")
+            val text = response.bodyAsText()
+            json.decodeFromString<List<ClipboardHistoryItem>>(text)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 清空服务端剪贴板历史记录 */
+    suspend fun clearServerClipboardHistory(): String {
+        return try {
+            val response = client.submitFormWithBinaryData(
+                url = "${HttpConfig.getBaseUrl()}/clipboard/clear",
+                formData = formData { }
+            )
+            response.bodyAsText()
+        } catch (e: Exception) {
+            e.message ?: "清空失败"
+        }
+    }
+
+    /** 删除服务端单条剪贴板历史记录 */
+    suspend fun deleteServerClipboardHistoryItem(id: String): String {
+        return try {
+            val response = client.submitFormWithBinaryData(
+                url = "${HttpConfig.getBaseUrl()}/clipboard/delete",
+                formData = formData {
+                    append("id", id)
+                }
+            )
+            response.bodyAsText()
+        } catch (e: Exception) {
+            e.message ?: "删除失败"
         }
     }
 }

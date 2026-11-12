@@ -87,6 +87,78 @@ class LocalFileServer(private val config: ServerConfig) {
     @Volatile
     private var clipboardSourceDeviceName: String? = null
 
+    // ========== 剪贴板历史记录服务端存储 ==========
+    /** 服务端剪贴板历史记录列表 */
+    private val clipboardHistory = mutableListOf<com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryItem>()
+    /** 历史记录上限 */
+    private val maxHistorySize = 100
+    /** 历史持久化文件路径 */
+    private val historyFilePath by lazy {
+        val home = System.getProperty("user.home") ?: "."
+        val dir = java.io.File(home, ".filemanager${java.io.File.separator}clipboard")
+        if (!dir.exists()) dir.mkdirs()
+        java.io.File(dir, "server_clipboard_history.json").absolutePath
+    }
+
+    /** 从文件加载历史记录 */
+    private fun loadClipboardHistory() {
+        try {
+            val file = java.io.File(historyFilePath)
+            if (file.exists()) {
+                val raw = file.readText()
+                if (raw.isNotBlank()) {
+                    val list = sharedJson.decodeFromString(
+                        kotlinx.serialization.builtins.ListSerializer(
+                            com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryItem.serializer()
+                        ),
+                        raw
+                    )
+                    clipboardHistory.clear()
+                    clipboardHistory.addAll(list.take(maxHistorySize))
+                }
+            }
+        } catch (_: Exception) {
+            clipboardHistory.clear()
+        }
+    }
+
+    /** 持久化历史记录到文件 */
+    private fun persistClipboardHistory() {
+        try {
+            val file = java.io.File(historyFilePath)
+            file.writeText(
+                sharedJson.encodeToString(
+                    kotlinx.serialization.builtins.ListSerializer(
+                        com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryItem.serializer()
+                    ),
+                    clipboardHistory.toList()
+                )
+            )
+        } catch (_: Exception) {
+            // 持久化失败静默忽略
+        }
+    }
+
+    /** 添加一条剪贴板历史记录到服务端 */
+    private fun addClipboardHistoryItem(text: String, deviceName: String) {
+        if (text.isBlank()) return
+        // 去重：与最新一条相同则跳过
+        if (clipboardHistory.isNotEmpty() && clipboardHistory.first().text == text) return
+
+        val item = com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryItem(
+            id = "${java.lang.System.currentTimeMillis()}-${kotlin.random.Random.nextInt(10000, 99999)}",
+            text = text,
+            timestamp = java.lang.System.currentTimeMillis(),
+            deviceName = deviceName,
+            source = com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipSource.REMOTE
+        )
+        clipboardHistory.add(0, item)
+        if (clipboardHistory.size > maxHistorySize) {
+            clipboardHistory.removeAt(clipboardHistory.size - 1)
+        }
+        persistClipboardHistory()
+    }
+
     fun createServer(): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
         File(config.rootPath).mkdirs()
         val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
@@ -636,10 +708,46 @@ class LocalFileServer(private val config: ServerConfig) {
                             clipboardTimestamp = java.lang.System.currentTimeMillis()
                             clipboardSourceDeviceId = fromDeviceId.ifEmpty { null }
                             clipboardSourceDeviceName = fromDeviceName.ifEmpty { null }
+                            // 同时添加到服务端历史记录
+                            addClipboardHistoryItem(text, fromDeviceName.ifEmpty { deviceInfo?.deviceName ?: "未知设备" })
                             call.respondText("ok", ContentType.Text.Plain)
                         } else {
                             call.respondText("empty", ContentType.Text.Plain)
                         }
+                    }
+
+                    // GET: 获取服务端剪贴板历史记录
+                    get("/clipboard/history") {
+                        val list = clipboardHistory.toList()
+                        call.respondText(
+                            sharedJson.encodeToString(
+                                kotlinx.serialization.builtins.ListSerializer(
+                                    com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryItem.serializer()
+                                ),
+                                list
+                            ),
+                            ContentType.Text.Plain
+                        )
+                    }
+
+                    // POST: 清空服务端剪贴板历史记录
+                    post("/clipboard/clear") {
+                        clipboardHistory.clear()
+                        persistClipboardHistory()
+                        call.respondText("ok", ContentType.Text.Plain)
+                    }
+
+                    // POST: 删除服务端单条剪贴板历史记录
+                    post("/clipboard/delete") {
+                        val params = call.receiveParameters()
+                        val id = params["id"] ?: ""
+                        if (id.isEmpty()) {
+                            call.respondText("id required", ContentType.Text.Plain)
+                            return@post
+                        }
+                        clipboardHistory.removeAll { it.id == id }
+                        persistClipboardHistory()
+                        call.respondText("ok", ContentType.Text.Plain)
                     }
 
 
@@ -667,6 +775,7 @@ class LocalFileServer(private val config: ServerConfig) {
     fun start(onThrowable: (Throwable) -> Unit) {
         this.onThrowable = onThrowable
         try {
+            loadClipboardHistory()
             server.start()
             startDeviceDiscovery()
         } catch (e: Throwable) {

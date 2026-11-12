@@ -13,26 +13,74 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.ohuang.kmp.filemanager.kmp_filemanager.ApiService
 import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryItem
 import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardHistoryManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipboardSyncManager
 import com.ohuang.kmp.filemanager.kmp_filemanager.clipboard.ClipSource
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.copyToClipboard
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.currentTimeMillis
+import kotlinx.coroutines.launch
+
+/**
+ * 剪贴板历史记录来源模式
+ */
+enum class ClipHistorySource {
+    LOCAL,   // 本地存储
+    SERVER   // 服务端存储
+}
 
 /**
  * 剪贴板历史记录页面
  *
- * - 展示最多 [ClipboardHistoryManager.MAX_HISTORY] 条历史记录
+ * - 支持本地 / 服务端切换查看
+ * - 本地模式：展示最多 [ClipboardHistoryManager.MAX_HISTORY] 条历史记录
+ * - 服务端模式：从远端服务器拉取历史记录
  * - 每条可复制到剪贴板或删除
  * - 支持一键清空
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClipboardHistoryScreen(onBack: () -> Unit) {
-    val history by ClipboardHistoryManager.history.collectAsState()
+    val scope = rememberCoroutineScope()
+    val localHistory by ClipboardHistoryManager.history.collectAsState()
+    
+    var sourceMode by remember { mutableStateOf(ClipHistorySource.LOCAL) }
+    var serverHistory by remember { mutableStateOf<List<ClipboardHistoryItem>>(emptyList()) }
+    var isLoadingServer by remember { mutableStateOf(false) }
+    var serverError by remember { mutableStateOf<String?>(null) }
+    
     var showClearDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<ClipboardHistoryItem?>(null) }
+
+    // 当前显示的列表
+    val currentHistory = when (sourceMode) {
+        ClipHistorySource.LOCAL -> localHistory
+        ClipHistorySource.SERVER -> serverHistory
+    }
+    val currentMaxCount = when (sourceMode) {
+        ClipHistorySource.LOCAL -> ClipboardHistoryManager.MAX_HISTORY
+        ClipHistorySource.SERVER -> 100
+    }
+
+    // 切换到服务端模式时自动加载
+    fun loadServerHistory() {
+        scope.launch {
+            isLoadingServer = true
+            serverError = null
+            try {
+                serverHistory = ApiService.fetchServerClipboardHistory()
+                if (serverHistory.isEmpty()) {
+                    serverError = null // 空列表不算错误
+                }
+            } catch (e: Exception) {
+                serverError = e.message ?: "加载失败"
+                serverHistory = emptyList()
+            } finally {
+                isLoadingServer = false
+            }
+        }
+    }
 
     // 清空确认对话框
     if (showClearDialog) {
@@ -40,11 +88,22 @@ fun ClipboardHistoryScreen(onBack: () -> Unit) {
             onDismissRequest = { showClearDialog = false },
             icon = { Icon(Icons.Default.Delete, contentDescription = null) },
             title = { Text("清空历史记录") },
-            text = { Text("确定要删除全部 ${history.size} 条剪贴板历史记录吗？此操作不可撤销。") },
+            text = {
+                val label = if (sourceMode == ClipHistorySource.LOCAL) "本地" else "服务端"
+                Text("确定要删除${label}全部 ${currentHistory.size} 条剪贴板历史记录吗？此操作不可撤销。")
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        ClipboardHistoryManager.clear()
+                        scope.launch {
+                            when (sourceMode) {
+                                ClipHistorySource.LOCAL -> ClipboardHistoryManager.clear()
+                                ClipHistorySource.SERVER -> {
+                                    ApiService.clearServerClipboardHistory()
+                                    serverHistory = emptyList()
+                                }
+                            }
+                        }
                         showClearDialog = false
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -74,7 +133,15 @@ fun ClipboardHistoryScreen(onBack: () -> Unit) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        ClipboardHistoryManager.removeItem(item.id)
+                        scope.launch {
+                            when (sourceMode) {
+                                ClipHistorySource.LOCAL -> ClipboardHistoryManager.removeItem(item.id)
+                                ClipHistorySource.SERVER -> {
+                                    ApiService.deleteServerClipboardHistoryItem(item.id)
+                                    serverHistory = serverHistory.filter { it.id != item.id }
+                                }
+                            }
+                        }
                         showDeleteDialog = null
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -98,7 +165,7 @@ fun ClipboardHistoryScreen(onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    if (history.isNotEmpty()) {
+                    if (currentHistory.isNotEmpty()) {
                         IconButton(onClick = { showClearDialog = true }) {
                             Icon(
                                 Icons.Default.DeleteSweep,
@@ -111,64 +178,229 @@ fun ClipboardHistoryScreen(onBack: () -> Unit) {
             )
         }
     ) { paddingValues ->
-        if (history.isEmpty()) {
-            // 空状态
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.ContentPaste,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        "暂无剪贴板历史",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "复制内容后将自动出现在这里",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 顶部统计
-                item(key = "header") {
-                    Text(
-                        "共 ${history.size} / ${ClipboardHistoryManager.MAX_HISTORY} 条",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // ========== 本地 / 服务端切换栏 ==========
+            SourceModeToggle(
+                currentMode = sourceMode,
+                onModeChange = { mode ->
+                    sourceMode = mode
+                    if (mode == ClipHistorySource.SERVER) {
+                        loadServerHistory()
+                    }
+                },
+                isLoadingServer = isLoadingServer
+            )
+
+            // ========== 内容区域 ==========
+            when {
+                // 服务端加载中
+                sourceMode == ClipHistorySource.SERVER && isLoadingServer -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "正在加载服务端历史...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
 
-                items(history, key = { it.id }) { item ->
-                    HistoryItemCard(
-                        item = item,
-                        onCopy = {
-                            ClipboardSyncManager.skipNextChange()
-                            copyToClipboard(item.text)
-                        },
-                        onDelete = { showDeleteDialog = item }
-                    )
+                // 服务端错误
+                sourceMode == ClipHistorySource.SERVER && serverError != null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.CloudOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "无法连接服务端",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                serverError ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            OutlinedButton(onClick = { loadServerHistory() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("重试")
+                            }
+                        }
+                    }
+                }
+
+                // 空状态
+                currentHistory.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                if (sourceMode == ClipHistorySource.SERVER) Icons.Default.Cloud
+                                else Icons.Default.ContentPaste,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                if (sourceMode == ClipHistorySource.SERVER) "服务端暂无剪贴板历史"
+                                else "暂无剪贴板历史",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                if (sourceMode == ClipHistorySource.SERVER) "从其他设备同步剪贴板后将自动出现在这里"
+                                else "复制内容后将自动出现在这里",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                            // 服务端模式空时提供刷新按钮
+                            if (sourceMode == ClipHistorySource.SERVER) {
+                                Spacer(Modifier.height(16.dp))
+                                OutlinedButton(onClick = { loadServerHistory() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("刷新")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 有历史记录
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 顶部统计
+                        item(key = "header") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "共 ${currentHistory.size} / $currentMaxCount 条",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                                // 服务端模式显示刷新按钮
+                                if (sourceMode == ClipHistorySource.SERVER) {
+                                    TextButton(
+                                        onClick = { loadServerHistory() },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = "刷新",
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("刷新", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+
+                        items(currentHistory, key = { it.id }) { item ->
+                            HistoryItemCard(
+                                item = item,
+                                onCopy = {
+                                    ClipboardSyncManager.skipNextChange()
+                                    copyToClipboard(item.text)
+                                },
+                                onDelete = { showDeleteDialog = item }
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+// ==================== 来源模式切换栏 ====================
+
+@Composable
+private fun SourceModeToggle(
+    currentMode: ClipHistorySource,
+    onModeChange: (ClipHistorySource) -> Unit,
+    isLoadingServer: Boolean
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 本地按钮
+            FilterChip(
+                selected = currentMode == ClipHistorySource.LOCAL,
+                onClick = { onModeChange(ClipHistorySource.LOCAL) },
+                label = { Text("本地") },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.PhoneAndroid,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            )
+
+            // 服务端按钮
+            FilterChip(
+                selected = currentMode == ClipHistorySource.SERVER,
+                onClick = { onModeChange(ClipHistorySource.SERVER) },
+                label = { Text("服务端") },
+                leadingIcon = {
+                    if (isLoadingServer && currentMode == ClipHistorySource.SERVER) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Cloud,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            )
         }
     }
 }

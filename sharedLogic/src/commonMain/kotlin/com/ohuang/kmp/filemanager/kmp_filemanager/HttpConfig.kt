@@ -397,4 +397,16 @@ object HttpConfig {
         val settings = _settings ?: return true
         return settings.getBoolean("clipboard_auto_sync", true)
     }
+
+    // ========== 服务器自启设置 ==========
+
+    fun saveServerAutoStart(enabled: Boolean) {
+        val settings = _settings ?: return
+        settings.putBoolean("server_auto_start", enabled)
+    }
+
+    fun loadServerAutoStart(): Boolean {
+        val settings = _settings ?: return true
+        return settings.getBoolean("server_auto_start", true)
+    }
 }
