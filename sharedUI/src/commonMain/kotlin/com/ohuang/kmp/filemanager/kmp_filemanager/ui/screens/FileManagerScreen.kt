@@ -27,6 +27,8 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.data.openUri
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.components.*
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.viewmodel.FileViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +69,13 @@ fun FileManagerScreen(
 
     LaunchedEffect(goUpSignal) {
         if (goUpSignal > 0) viewModel.goUp()
+    }
+
+    LaunchedEffect(Unit) {
+        com.ohuang.kmp.filemanager.kmp_filemanager.FileManagerState.refreshSignal
+            .drop(1)
+            .debounce(300)
+            .collect { viewModel.refreshFiles() }
     }
 
     val selectedFile by viewModel.selectedFile.collectAsState()
@@ -267,6 +276,7 @@ fun FileManagerScreen(
                         onMove = { file -> viewModel.showMoveDialog(file) },
                         onCopyLink = { file ->
                                 copyToClipboard(viewModel.getFileUrl(file))
+                                viewModel.showToastMessage("链接已复制到剪贴板")
                             },
                             onOpenInNew = { file ->
                                 openUri(viewModel.getFileUrl(file))

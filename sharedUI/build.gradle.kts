@@ -30,6 +30,8 @@ kotlin {
             implementation(libs.mediaplayer.kmp)
         }
         jvmMain.dependencies {
+            implementation(libs.javacv)
+            implementation("org.bytedeco:ffmpeg:6.1-1.5.10:windows-x86_64")
         }
         commonMain.dependencies {
             api(project(":sharedLogic"))

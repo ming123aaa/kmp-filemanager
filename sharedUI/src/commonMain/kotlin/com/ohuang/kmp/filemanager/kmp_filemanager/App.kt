@@ -272,4 +272,11 @@ object FileManagerState {
     fun consumeSharedFiles() {
         _sharedFiles.value = emptyList()
     }
+
+    private val _refreshSignal = MutableStateFlow(0)
+    val refreshSignal: StateFlow<Int> = _refreshSignal
+
+    fun triggerRefresh() {
+        _refreshSignal.value++
+    }
 }

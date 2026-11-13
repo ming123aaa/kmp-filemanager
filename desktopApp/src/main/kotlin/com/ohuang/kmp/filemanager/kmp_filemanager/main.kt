@@ -1,6 +1,10 @@
 package com.ohuang.kmp.filemanager.kmp_filemanager
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
@@ -89,7 +93,13 @@ fun main() {
             Window(
                 onCloseRequest = { showExitDialog = true },
                 title = "File Manager",
-                state = remember { WindowState(width = 1200.dp, height = 800.dp) }
+                state = remember { WindowState(width = 1200.dp, height = 800.dp) },
+                onPreviewKeyEvent = { keyEvent ->
+                    if (keyEvent.key == Key.F5 && keyEvent.type == KeyEventType.KeyUp) {
+                        FileManagerState.triggerRefresh()
+                        true
+                    } else false
+                }
             ) {
 
                 LaunchedEffect(Unit) {

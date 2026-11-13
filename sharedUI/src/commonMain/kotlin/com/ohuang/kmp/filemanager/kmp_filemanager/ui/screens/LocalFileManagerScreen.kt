@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ohuang.kmp.filemanager.kmp_filemanager.Settings
+import com.ohuang.kmp.filemanager.kmp_filemanager.FileManagerState
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.TextEditorNavData
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.ViewMode
 import com.ohuang.kmp.filemanager.kmp_filemanager.data.copyFileToClipboard
@@ -24,6 +25,8 @@ import com.ohuang.kmp.filemanager.kmp_filemanager.data.openLocalFile
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.components.*
 import com.ohuang.kmp.filemanager.kmp_filemanager.ui.viewmodel.LocalFileViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +64,13 @@ fun LocalFileManagerScreen(
 
     var isRefreshing by remember { mutableStateOf(false) }
     LaunchedEffect(!isLoading) { if (!isLoading) isRefreshing = false }
+
+    LaunchedEffect(Unit) {
+        FileManagerState.refreshSignal
+            .drop(1)
+            .debounce(300)
+            .collect { viewModel.refreshFiles() }
+    }
 
     val showMkdirDialog by viewModel.showMkdirDialog.collectAsState()
     val showCreateFileDialog by viewModel.showCreateFileDialog.collectAsState()
@@ -224,6 +234,7 @@ fun LocalFileManagerScreen(
                         onMove = { file -> viewModel.showMoveDialog(file) },
                         onCopyLink = { file ->
                             copyToClipboard(viewModel.getFullPath(file))
+                            viewModel.showToastMessage("路径已复制到剪贴板")
                         },
                         onCopyFile = { file ->
                             val success = copyFileToClipboard(viewModel.getFullPath(file))

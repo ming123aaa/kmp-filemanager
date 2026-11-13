@@ -123,24 +123,13 @@ fun PreviewCard(
                                         .fillMaxSize()
                                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                 ) {
-                                    SubcomposeAsyncImage(
-                                        model = fileUrl,
-                                        contentDescription = file.name,
+                                    VideoThumbnail(
+                                        videoUrl = fileUrl,
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
                                         contentScale = ContentScale.Crop,
-                                        error = {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .background(Color(0xFF1A1A2E)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                FileIcon(file = file, size = 48.dp)
-                                            }
-                                        },
-                                        loading = {
+                                        placeholder = {
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxSize()
